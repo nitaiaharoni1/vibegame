@@ -48,7 +48,7 @@ npm run check     # Full gate: lint + typecheck (parallel), build, test — logs
 pnpm install-hooks  # Optional: pre-commit + pre-push (requires pre-commit CLI)
 ```
 
-CI runs the same `npm run check` as `pnpm install --frozen-lockfile` on Node 20 and 22.
+GitHub Actions workflows are **manual-only** for now (Actions → run **CI** or **Release**). Locally, `npm run check` matches the CI job (lint, typecheck, build, test on Node 20 and 22).
 
 ---
 

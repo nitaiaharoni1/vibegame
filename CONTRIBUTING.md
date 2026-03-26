@@ -68,7 +68,7 @@ Scope (in parentheses) is optional but encouraged for package-specific changes.
 ## Pull request guidelines
 
 - **Tests required** for all new features and bug fixes. Tests live in `src/__tests__/` inside each package and use Vitest.
-- **All CI checks must pass** — `npm run check` (lint, typecheck, build, test) matches what runs in GitHub Actions — before a PR can be merged.
+- **Quality gate** — run `npm run check` locally before merging. GitHub Actions CI is **workflow_dispatch** only for now (not on every push); enable automatic runs in `.github/workflows/` when you want that.
 - Keep PRs focused. One concern per PR makes review faster.
 - Reference any related issues in the PR description.
 - Breaking changes must be called out explicitly in the PR description and commit message with a `BREAKING CHANGE:` footer.
