@@ -30,7 +30,12 @@ pnpm dev      # Watch mode — rebuilds all packages on file change (via Turbo)
 pnpm test     # Run all tests across all packages
 pnpm lint     # Lint all packages
 pnpm build    # Full production build
+pnpm typecheck   # TypeScript check across all packages (tsc --noEmit)
+npm run check    # Full gate: lint, typecheck, build, test (writes logs to checks-outputs/)
+pnpm install-hooks  # Install pre-commit + pre-push hooks (requires pre-commit CLI — https://pre-commit.com/#install)
 ```
+
+Pre-commit runs Biome on commit; pre-push runs the same full `npm run check` as CI. Skip a hook when needed: `SKIP=npm-check git push`.
 
 To work on a single package, `cd` into it and run `pnpm dev`, `pnpm test`, etc. directly. Turbo's caching means unchanged packages are skipped automatically.
 

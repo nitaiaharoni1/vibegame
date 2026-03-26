@@ -1,0 +1,39 @@
+# Unified pre-commit / pre-push for vigame (pnpm monorepo).
+# Install (registers both hook types):
+#   pnpm install-hooks
+#   # or: pre-commit install && pre-commit install --hook-type pre-push
+# Requires pre-commit CLI: https://pre-commit.com/#install
+#   brew install pre-commit   # macOS
+#   pipx install pre-commit   # Python
+# Skip one hook: SKIP=hook-id git commit / git push
+default_install_hook_types: [pre-commit, pre-push]
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        stages: [pre-commit]
+      - id: end-of-file-fixer
+        stages: [pre-commit]
+      - id: check-yaml
+        stages: [pre-commit]
+      - id: check-merge-conflict
+        stages: [pre-commit]
+      - id: detect-private-key
+        stages: [pre-commit]
+
+  - repo: local
+    hooks:
+      - id: pnpm-lint
+        name: Biome (pnpm lint)
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && pnpm lint'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]
+
+      - id: npm-check
+        name: Full check (lint, type, build, test)
+        entry: bash -c 'cd "$(git rev-parse --show-toplevel)" && npm run check'
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

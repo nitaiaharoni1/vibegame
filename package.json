@@ -10,7 +10,15 @@
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "check": "npm run check:all",
+    "check:all": "mkdir -p checks-outputs && npm run check:lint && npm run check:type && npm run check:build && npm run check:test",
+    "check:lint": "bash -c 'set -o pipefail; pnpm lint 2>&1 | tee checks-outputs/lint.txt'",
+    "check:type": "bash -c 'set -o pipefail; pnpm typecheck 2>&1 | tee checks-outputs/type.txt'",
+    "check:build": "bash -c 'set -o pipefail; pnpm build 2>&1 | tee checks-outputs/build.txt'",
+    "check:test": "bash -c 'set -o pipefail; pnpm test 2>&1 | tee checks-outputs/test.txt'",
     "clean": "turbo clean",
+    "install-hooks": "bash scripts/install-hooks.sh",
     "publish:dry-run": "pnpm publish -r --dry-run --no-git-checks"
   },
   "devDependencies": {
