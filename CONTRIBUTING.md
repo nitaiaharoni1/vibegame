@@ -31,8 +31,9 @@ pnpm test     # Run all tests across all packages
 pnpm lint     # Lint all packages
 pnpm build    # Full production build
 pnpm typecheck   # TypeScript check across all packages (tsc --noEmit)
-npm run check    # Full gate: lint, typecheck, build, test (writes logs to checks-outputs/)
-pnpm install-hooks  # Install pre-commit + pre-push hooks (requires pre-commit CLI — https://pre-commit.com/#install)
+npm run check    # Full gate: lint + type in parallel (concurrently), then build & test; logs in checks-outputs/
+pnpm install-hooks  # Same idea as tesse’s install-hooks → pre-commit install --config <repo>/.pre-commit-config.yaml
+pnpm install:hooks  # Alias for install-hooks (matches tesse’s install:hooks naming)
 ```
 
 Pre-commit runs Biome on commit; pre-push runs the same full `npm run check` as CI. Skip a hook when needed: `SKIP=npm-check git push`.

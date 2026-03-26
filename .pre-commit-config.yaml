@@ -1,7 +1,7 @@
 # Unified pre-commit / pre-push for vigame (pnpm monorepo).
-# Install (registers both hook types):
+# Install (registers hook types from default_install_hook_types):
 #   pnpm install-hooks
-#   # or: pre-commit install && pre-commit install --hook-type pre-push
+#   # Same idea as tesse: tesse-backend/Makefile → pre-commit install --config <repo-root>/.pre-commit-config.yaml
 # Requires pre-commit CLI: https://pre-commit.com/#install
 #   brew install pre-commit   # macOS
 #   pipx install pre-commit   # Python

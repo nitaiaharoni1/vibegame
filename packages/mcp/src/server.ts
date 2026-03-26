@@ -377,6 +377,13 @@ export async function startServer(): Promise<void> {
       })();
     });
   });
+  httpServer.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      // Primary already owns the control port — skip in proxy mode.
+      return;
+    }
+    process.stderr.write(`[vigame-mcp] Control server error: ${err.message}\n`);
+  });
   httpServer.listen(controlPort);
 
   const transport = new StdioServerTransport();

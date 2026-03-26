@@ -12,18 +12,20 @@
     "format": "biome format --write .",
     "typecheck": "pnpm -r exec tsc --noEmit",
     "check": "npm run check:all",
-    "check:all": "mkdir -p checks-outputs && npm run check:lint && npm run check:type && npm run check:build && npm run check:test",
+    "check:all": "mkdir -p checks-outputs && concurrently --success all --names lint,type \"npm run check:lint\" \"npm run check:type\" && npm run check:build && npm run check:test",
     "check:lint": "bash -c 'set -o pipefail; pnpm lint 2>&1 | tee checks-outputs/lint.txt'",
     "check:type": "bash -c 'set -o pipefail; pnpm typecheck 2>&1 | tee checks-outputs/type.txt'",
     "check:build": "bash -c 'set -o pipefail; pnpm build 2>&1 | tee checks-outputs/build.txt'",
     "check:test": "bash -c 'set -o pipefail; pnpm test 2>&1 | tee checks-outputs/test.txt'",
     "clean": "turbo clean",
     "install-hooks": "bash scripts/install-hooks.sh",
+    "install:hooks": "bash scripts/install-hooks.sh",
     "publish:dry-run": "pnpm publish -r --dry-run --no-git-checks"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
     "@changesets/cli": "^2.30.0",
+    "concurrently": "^9.2.1",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

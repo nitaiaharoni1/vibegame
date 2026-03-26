@@ -13,8 +13,8 @@ pnpm install      # Install all dependencies (run from repo root)
 pnpm build        # Build all packages via Turbo
 pnpm test         # Run all tests via Turbo (Vitest per package)
 pnpm dev          # Watch mode — rebuild on file change
-npm run check     # Full gate: lint, typecheck, build, test (logs under checks-outputs/)
-pnpm install-hooks  # Register pre-commit + pre-push hooks (requires pre-commit CLI)
+npm run check     # Full gate: concurrently lint+type, then build & test (logs under checks-outputs/)
+pnpm install-hooks  # Like tesse: pre-commit install --config <repo-root>/.pre-commit-config.yaml
 ```
 
 ## Package overview
