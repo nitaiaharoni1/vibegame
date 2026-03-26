@@ -263,7 +263,7 @@ function parsePos(pos: string | undefined): [number, number, number] {
   return [parts[0] ?? 0, parts[1] ?? 0, parts[2] ?? 0];
 }
 
-function makeVgxTags(_world: World) {
+function makeVgxTags() {
   return {
     transform(w: World, eid: EntityId, attrs: Record<string, string>): void {
       const [px, py, pz] = parsePos(attrs['pos']);
@@ -385,7 +385,7 @@ export function ThreeRendererPlugin(config?: ThreeRendererConfig): VibePlugin {
     },
 
     vgxTags() {
-      return makeVgxTags({} as World);
+      return makeVgxTags();
     },
   };
 }

@@ -37,7 +37,9 @@ import {
   Phase,
   stepWorld,
   buildSchemaRegistry,
+  registerPlugin,
 } from "../index.js";
+import type { VibePlugin } from "../index.js";
 
 // ---------------------------------------------------------------------------
 // Entity tests
@@ -547,6 +549,107 @@ describe("System", () => {
 
     stepWorld(world, 0.123);
     expect(receivedDelta).toBeCloseTo(0.123);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// System ordering — after/before constraints and cycle detection
+// ---------------------------------------------------------------------------
+
+describe("System ordering", () => {
+  it("respects after constraints within a phase", () => {
+    const world = createWorld();
+    const order: string[] = [];
+
+    addSystem(world, defineSystem({
+      name: "C",
+      phase: Phase.Update,
+      after: ["B"],
+      execute: () => { order.push("C"); },
+    }));
+    addSystem(world, defineSystem({
+      name: "B",
+      phase: Phase.Update,
+      after: ["A"],
+      execute: () => { order.push("B"); },
+    }));
+    addSystem(world, defineSystem({
+      name: "A",
+      phase: Phase.Update,
+      execute: () => { order.push("A"); },
+    }));
+
+    stepWorld(world, 0.016);
+    expect(order).toEqual(["A", "B", "C"]);
+  });
+
+  it("respects before constraints within a phase", () => {
+    const world = createWorld();
+    const order: string[] = [];
+
+    addSystem(world, defineSystem({
+      name: "Last",
+      phase: Phase.Update,
+      execute: () => { order.push("Last"); },
+    }));
+    addSystem(world, defineSystem({
+      name: "First",
+      phase: Phase.Update,
+      before: ["Last"],
+      execute: () => { order.push("First"); },
+    }));
+
+    stepWorld(world, 0.016);
+    expect(order).toEqual(["First", "Last"]);
+  });
+
+  it("throws on circular system dependencies", () => {
+    const world = createWorld();
+
+    addSystem(world, defineSystem({
+      name: "Alpha",
+      phase: Phase.Update,
+      after: ["Beta"],
+      execute: () => {},
+    }));
+
+    expect(() =>
+      addSystem(world, defineSystem({
+        name: "Beta",
+        phase: Phase.Update,
+        after: ["Alpha"],
+        execute: () => {},
+      }))
+    ).toThrow(/circular/i);
+  });
+
+  it("registerPlugin systems are also topo-sorted", () => {
+    const world = createWorld();
+    const order: string[] = [];
+
+    const plugin: VibePlugin = {
+      name: "TestPlugin",
+      setup() {},
+      systems() {
+        return [
+          defineSystem({
+            name: "P_Second",
+            phase: Phase.Update,
+            after: ["P_First"],
+            execute: () => { order.push("second"); },
+          }),
+          defineSystem({
+            name: "P_First",
+            phase: Phase.Update,
+            execute: () => { order.push("first"); },
+          }),
+        ];
+      },
+    };
+
+    registerPlugin(world, plugin);
+    stepWorld(world, 0.016);
+    expect(order).toEqual(["first", "second"]);
   });
 });
 

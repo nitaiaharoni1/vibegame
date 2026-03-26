@@ -41,7 +41,7 @@ export type {
 } from "./ecs/component.js";
 
 // System
-export { Phase, defineSystem, addSystem, removeSystem } from "./ecs/system.js";
+export { Phase, defineSystem, addSystem, removeSystem, sortSystems } from "./ecs/system.js";
 export type { SystemDefinition } from "./ecs/system.js";
 
 // Query

@@ -1,4 +1,5 @@
 import type { World, EntityId, VibePlugin, SystemDefinition } from "../ecs/world.js";
+import { sortSystems } from "../ecs/sort.js";
 
 export type { VibePlugin, SystemDefinition };
 
@@ -28,10 +29,9 @@ export function registerPlugin(world: World, plugin: VibePlugin): void {
   if (plugin.systems) {
     const systems = plugin.systems(world);
     for (const sys of systems) {
-      // Import addSystem lazily to avoid circular issues
       world.systems.push(sys);
     }
-    // Sort by phase
-    world.systems.sort((a, b) => a.phase - b.phase);
+    // Full topological sort respecting phase + after/before constraints
+    sortSystems(world);
   }
 }

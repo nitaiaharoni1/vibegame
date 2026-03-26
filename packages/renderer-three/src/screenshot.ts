@@ -6,9 +6,12 @@ import { getThreeState } from './renderer-plugin.js';
  * Returns null if the renderer is not initialised.
  */
 export function captureScreenshot(world: World): string | null {
-  const state = getThreeState(world);
-  if (!state) return null;
-  const { renderer, scene, camera } = state;
-  renderer.render(scene, camera);
-  return renderer.domElement.toDataURL('image/png');
+  try {
+    const state = getThreeState(world);
+    const { renderer, scene, camera } = state;
+    renderer.render(scene, camera);
+    return renderer.domElement.toDataURL('image/png');
+  } catch {
+    return null;
+  }
 }

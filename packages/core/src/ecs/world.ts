@@ -1,4 +1,5 @@
 import type { ComponentDef } from "./component.js";
+import { sortSystems } from "./sort.js";
 
 export type EntityId = number;
 
@@ -88,16 +89,6 @@ function registerPluginInternal(world: World, plugin: VibePlugin): void {
     }
     sortSystems(world);
   }
-}
-
-// Keep world.registerPlugin accessible from plugin module
-(globalThis as unknown as Record<string, unknown>).__vigameRegisterPlugin = registerPluginInternal;
-
-function sortSystems(world: World): void {
-  world.systems.sort((a, b) => {
-    if (a.phase !== b.phase) return a.phase - b.phase;
-    return 0;
-  });
 }
 
 // ---------------------------------------------------------------------------

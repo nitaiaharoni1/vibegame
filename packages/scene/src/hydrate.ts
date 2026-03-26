@@ -61,7 +61,10 @@ export function hydrateScene(vgxWorld: VGXWorld, world: World): void {
         }
         handler(world, eid, attrs);
       } else {
-        // No handler registered for this tag; silently skip
+        console.warn(
+          `[vigame] No VGX tag handler for "<${comp.type}>" on entity "${vgxEntity.name ?? eid}" — component skipped. ` +
+          `Make sure the plugin that handles this component is loaded.`
+        );
       }
     }
   }
