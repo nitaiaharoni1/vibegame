@@ -190,10 +190,7 @@ export function captureDebugScreenshot(
       });
     }
 
-    const raw = offscreen.toDataURL('image/webp', quality ?? 0.85);
-    const composited = raw.startsWith('data:image/webp')
-      ? raw
-      : offscreen.toDataURL('image/jpeg', quality ?? 0.85);
+    const composited = offscreen.toDataURL('image/png');
     return { dataUrl: composited, width: offscreen.width, height: offscreen.height };
   } catch {
     return result;

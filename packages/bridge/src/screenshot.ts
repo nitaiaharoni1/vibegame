@@ -14,9 +14,8 @@ export function captureScreenshot(
   canvas: HTMLCanvasElement | null,
   options: ScreenshotOptions | number = {},
 ): ScreenshotResult {
-  // Accept legacy numeric quality arg for backwards compat
   const opts: ScreenshotOptions = typeof options === 'number' ? { quality: options } : options;
-  const { quality = 0.85, maxWidth, maxHeight } = opts;
+  const { maxWidth, maxHeight } = opts;
 
   const target = canvas ?? findCanvas();
   if (target === null) {
@@ -45,11 +44,8 @@ export function captureScreenshot(
     }
   }
 
-  // WebP is ~40-50% smaller than JPEG at same quality; fall back to JPEG if unsupported
-  let dataUrl = source.toDataURL('image/webp', quality);
-  if (!dataUrl.startsWith('data:image/webp')) {
-    dataUrl = source.toDataURL('image/jpeg', quality);
-  }
+  // Use PNG for broad MCP client compatibility (WebP decoding not universally supported)
+  const dataUrl = source.toDataURL('image/png');
 
   return { dataUrl, width: source.width, height: source.height };
 }

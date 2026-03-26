@@ -45,6 +45,9 @@ importers:
 
   packages/cli:
     dependencies:
+      '@vigame/mcp':
+        specifier: workspace:*
+        version: link:../mcp
       '@vigame/protocol':
         specifier: workspace:*
         version: link:../protocol

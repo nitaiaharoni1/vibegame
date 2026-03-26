@@ -24,6 +24,7 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
+    "@vigame/mcp": "workspace:*",
     "@vigame/protocol": "workspace:*",
     "citty": "^0.1.6",
     "consola": "^3.2.3",

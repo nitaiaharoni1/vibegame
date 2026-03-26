@@ -49,6 +49,12 @@ export class BridgeServer {
   private upstreamWs: WebSocket | null = null;
   private proxyPending = new Map<string, PendingRequest>();
   private proxyMessageId = 0;
+  private proxyPort = DEFAULT_BRIDGE_PORT;
+  /** Unblocks `ready` once when entering proxy mode (from tryListen). */
+  private proxyConnectUnblock: (() => void) | null = null;
+  private proxyRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  /** When false, upstream close must not schedule reconnect (see close()). */
+  private allowProxyReconnect = true;
 
   // ── Shared ───────────────────────────────────────────────────────────────
   private pending = new Map<string, PendingRequest>();
@@ -154,48 +160,114 @@ export class BridgeServer {
 
   private connectAsProxy(port: number, resolve: () => void): void {
     this.proxyMode = true;
-    const ws = new WebSocket(`ws://localhost:${port}`);
+    this.proxyPort = port;
+    this.proxyConnectUnblock = resolve;
+    this.attemptProxyConnect();
+  }
 
-    ws.on('open', () => {
+  /**
+   * Connects to the primary vigame-mcp WebSocket. Retries on failure so a
+   * secondary MCP (e.g. Cursor) that starts before the primary can attach once
+   * `vigame start` binds the port.
+   */
+  private attemptProxyConnect(): void {
+    const ws = new WebSocket(`ws://localhost:${this.proxyPort}`);
+
+    ws.once('open', () => {
+      if (this.proxyRetryTimer !== null) {
+        clearTimeout(this.proxyRetryTimer);
+        this.proxyRetryTimer = null;
+      }
       ws.send(JSON.stringify({ type: 'mcp-proxy' }));
       this.upstreamWs = ws;
       process.stderr.write(
-        `[vigame-mcp] Port ${port} in use — operating as proxy through the primary vigame-mcp instance.\n`,
+        `[vigame-mcp] Port ${this.proxyPort} in use — operating as proxy through the primary vigame-mcp instance.\n`,
       );
-      resolve();
-    });
+      this.unblockProxyConnectOnce();
 
-    ws.on('error', (err) => {
-      process.stderr.write(
-        `[vigame-mcp] Port ${port} busy and proxy connection failed: ${err.message}\n`,
-      );
-      resolve(); // run without bridge
-    });
-
-    ws.on('close', () => {
-      this.upstreamWs = null;
-      for (const [, req] of this.proxyPending) {
+      ws.on('message', (rawData) => {
+        let msg: { id: unknown; result?: unknown; error?: string };
+        try {
+          msg = JSON.parse(rawData.toString()) as typeof msg;
+        } catch {
+          return;
+        }
+        const rid = normalizeMessageId(msg.id);
+        const req = this.proxyPending.get(rid);
+        if (!req) return;
         clearTimeout(req.timeout);
-        req.reject(new Error('Proxy connection to primary vigame-mcp lost.'));
-      }
-      this.proxyPending.clear();
+        this.proxyPending.delete(rid);
+        if (msg.error) req.reject(new Error(msg.error));
+        else req.resolve(msg.result);
+      });
+
+      ws.on('close', () => {
+        this.upstreamWs = null;
+        for (const [, req] of this.proxyPending) {
+          clearTimeout(req.timeout);
+          req.reject(new Error('Proxy connection to primary vigame-mcp lost.'));
+        }
+        this.proxyPending.clear();
+        this.scheduleProxyReconnect();
+      });
     });
 
-    ws.on('message', (rawData) => {
-      let msg: { id: unknown; result?: unknown; error?: string };
-      try {
-        msg = JSON.parse(rawData.toString()) as typeof msg;
-      } catch {
-        return;
+    ws.once('error', (err) => {
+      process.stderr.write(
+        `[vigame-mcp] Port ${this.proxyPort} busy and proxy connection failed: ${err.message}\n`,
+      );
+      this.unblockProxyConnectOnce();
+      if (!this.upstreamWs) {
+        this.scheduleProxyReconnect();
       }
-      const rid = normalizeMessageId(msg.id);
-      const req = this.proxyPending.get(rid);
-      if (!req) return;
-      clearTimeout(req.timeout);
-      this.proxyPending.delete(rid);
-      if (msg.error) req.reject(new Error(msg.error));
-      else req.resolve(msg.result);
     });
+  }
+
+  private unblockProxyConnectOnce(): void {
+    if (this.proxyConnectUnblock) {
+      this.proxyConnectUnblock();
+      this.proxyConnectUnblock = null;
+    }
+  }
+
+  /**
+   * Try to become primary (bind the port). If the port is free we switch out
+   * of proxy mode entirely. If EADDRINUSE, fall back to proxy retry.
+   */
+  private attemptBecomePrimary(): void {
+    const wss = new WebSocketServer({ port: this.proxyPort });
+
+    wss.on('listening', () => {
+      process.stderr.write(
+        `[vigame-mcp] Port ${this.proxyPort} is now free — switching to primary mode.\n`,
+      );
+      this.proxyMode = false;
+      this.wss = wss;
+      wss.on('connection', (ws) => this.classifyConnection(ws));
+    });
+
+    wss.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        this.attemptProxyConnect();
+      } else {
+        process.stderr.write(
+          `[vigame-mcp] WebSocket error during primary attempt: ${err.message}\n`,
+        );
+        this.scheduleProxyReconnect();
+      }
+    });
+  }
+
+  private scheduleProxyReconnect(): void {
+    if (!this.allowProxyReconnect || !this.proxyMode) return;
+    if (this.upstreamWs !== null) return;
+    if (this.proxyRetryTimer !== null) return;
+    this.proxyRetryTimer = setTimeout(() => {
+      this.proxyRetryTimer = null;
+      if (!this.allowProxyReconnect || !this.proxyMode || this.upstreamWs !== null) return;
+      process.stderr.write('[vigame-mcp] Upstream lost — attempting to bind port as primary...\n');
+      this.attemptBecomePrimary();
+    }, 2000);
   }
 
   // ── Primary: relay proxy-client commands to browser ───────────────────────
@@ -327,6 +399,12 @@ export class BridgeServer {
   }
 
   close(): void {
+    this.allowProxyReconnect = false;
+    if (this.proxyRetryTimer !== null) {
+      clearTimeout(this.proxyRetryTimer);
+      this.proxyRetryTimer = null;
+    }
+    this.proxyConnectUnblock = null;
     for (const [, req] of this.pending) {
       clearTimeout(req.timeout);
       req.reject(new Error('BridgeServer closed'));

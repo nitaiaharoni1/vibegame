@@ -277,48 +277,31 @@ describe('inspectSceneGraph', () => {
 // ---------------------------------------------------------------------------
 
 describe('captureScreenshot', () => {
-  it('uses WebP by default and returns dataUrl + dimensions', () => {
+  it('uses PNG and returns dataUrl + dimensions', () => {
     const mockCanvas = {
       width: 800,
       height: 600,
-      toDataURL: vi.fn().mockReturnValue('data:image/webp;base64,abc123'),
+      toDataURL: vi.fn().mockReturnValue('data:image/png;base64,abc123'),
     } as unknown as HTMLCanvasElement;
 
     const result = captureScreenshot(mockCanvas, { quality: 0.85 });
-    expect(result.dataUrl).toBe('data:image/webp;base64,abc123');
+    expect(result.dataUrl).toBe('data:image/png;base64,abc123');
     expect(result.width).toBe(800);
     expect(result.height).toBe(600);
-    expect(mockCanvas.toDataURL).toHaveBeenCalledWith('image/webp', 0.85);
-  });
-
-  it('falls back to JPEG when WebP is unsupported', () => {
-    const mockCanvas = {
-      width: 800,
-      height: 600,
-      // Simulate a browser that returns PNG when asked for WebP (unsupported)
-      toDataURL: vi
-        .fn()
-        .mockImplementation((fmt: string) =>
-          fmt === 'image/webp' ? 'data:image/png;base64,fallback' : 'data:image/jpeg;base64,jpeg',
-        ),
-    } as unknown as HTMLCanvasElement;
-
-    const result = captureScreenshot(mockCanvas);
-    expect(result.dataUrl).toBe('data:image/jpeg;base64,jpeg');
-    expect(mockCanvas.toDataURL).toHaveBeenCalledWith('image/jpeg', 0.85);
+    expect(mockCanvas.toDataURL).toHaveBeenCalledWith('image/png');
   });
 
   it('falls back to document.querySelector when canvas is null', () => {
     const mockCanvas = {
       width: 400,
       height: 300,
-      toDataURL: vi.fn().mockReturnValue('data:image/webp;base64,xyz'),
+      toDataURL: vi.fn().mockReturnValue('data:image/png;base64,xyz'),
     } as unknown as HTMLCanvasElement;
 
     vi.spyOn(document, 'querySelector').mockReturnValue(mockCanvas as Element);
 
     const result = captureScreenshot(null, { quality: 0.5 });
-    expect(result.dataUrl).toBe('data:image/webp;base64,xyz');
+    expect(result.dataUrl).toBe('data:image/png;base64,xyz');
     expect(result.width).toBe(400);
     expect(result.height).toBe(300);
 
@@ -413,7 +396,7 @@ describe('recordState with diffThreshold', () => {
     const mockCanvas = {
       width: 100,
       height: 100,
-      toDataURL: vi.fn().mockReturnValue('data:image/webp;base64,same'),
+      toDataURL: vi.fn().mockReturnValue('data:image/png;base64,same'),
     } as unknown as HTMLCanvasElement;
 
     vi.spyOn(document, 'querySelector').mockReturnValue(mockCanvas as Element);

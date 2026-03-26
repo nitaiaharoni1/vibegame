@@ -48,10 +48,7 @@ export async function fuzzTest(
 
   function captureFirstIssueScreenshot(): void {
     if (firstIssueScreenshot !== undefined) return;
-    const raw = canvas?.toDataURL('image/webp', 0.85);
-    const dataUrl = raw?.startsWith('data:image/webp')
-      ? raw
-      : canvas?.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas?.toDataURL('image/png');
     if (dataUrl !== undefined) {
       // Store full data URL so the MCP layer can read mimeType and strip the prefix
       firstIssueScreenshot = dataUrl;

@@ -20,7 +20,9 @@
     "clean": "turbo clean",
     "install-hooks": "bash scripts/install-hooks.sh",
     "install:hooks": "bash scripts/install-hooks.sh",
-    "publish:dry-run": "pnpm publish -r --dry-run --no-git-checks"
+    "publish:dry-run": "pnpm publish -r --dry-run --no-git-checks",
+    "vigame:start": "pnpm --filter @vigame/cli exec vigame start",
+    "vigame:bridge": "pnpm --filter @vigame/mcp exec node dist/bin.js"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.9",
