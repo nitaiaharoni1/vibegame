@@ -7,10 +7,15 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "test": "turbo test",
-    "lint": "turbo lint",
-    "clean": "turbo clean"
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "clean": "turbo clean",
+    "publish:dry-run": "pnpm publish -r --dry-run --no-git-checks"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@changesets/cli": "^2.30.0",
     "turbo": "^2.5.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"

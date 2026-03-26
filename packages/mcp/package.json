@@ -1,26 +1,52 @@
 {
   "name": "@vigame/mcp",
   "version": "0.1.0",
+  "description": "MCP server — gives AI agents live control of running Three.js/Phaser games",
   "type": "module",
+  "bin": {
+    "vigame-mcp": "./dist/bin.js"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "vigame-mcp": "./dist/server.js" },
   "exports": {
-    ".": { "import": "./dist/index.js", "types": "./dist/index.d.ts" },
-    "./bridge": { "import": "./dist/bridge.js", "types": "./dist/bridge.d.ts" },
-    "./server": { "import": "./dist/server.js", "types": "./dist/server.d.ts" }
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    }
   },
-  "scripts": { "build": "tsc", "dev": "tsc --watch" },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "clean": "rm -rf dist",
+    "start": "node dist/index.js"
+  },
   "dependencies": {
-    "@vigame/core": "workspace:*",
-    "@vigame/scene": "workspace:*",
+    "@vigame/protocol": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "zod": "^3.22.0",
     "ws": "^8.18.0"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.10",
-    "@vigame/renderer-three": "workspace:*",
-    "typescript": "^5.7.0"
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nitaiaharoni1/vibegame.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://github.com/nitaiaharoni1/vibegame#readme",
+  "publishConfig": {
+    "access": "public"
   }
 }

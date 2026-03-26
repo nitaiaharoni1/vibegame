@@ -2,3 +2,10 @@ node_modules
 dist
 .turbo
 *.local
+.env
+.env.*
+.DS_Store
+Thumbs.db
+coverage/
+.vscode/
+.idea/

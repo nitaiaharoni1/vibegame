@@ -1,99 +1,384 @@
-#!/usr/bin/env node
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { createServer } from 'node:http';
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { GameBridge } from './bridge.js';
-import { SceneInputSchema, sceneTool } from './tools/scene.js';
-import { EntityInputSchema, entityTool } from './tools/entity.js';
-import { ComponentInputSchema, componentTool } from './tools/component.js';
-import { TransformInputSchema, transformTool } from './tools/transform.js';
-import { QueryInputSchema, queryTool } from './tools/query.js';
-import { RuntimeInputSchema, runtimeTool } from './tools/runtime.js';
-import { InspectInputSchema, inspectTool } from './tools/inspect.js';
-import { VgxInputSchema, vgxTool } from './tools/vgx.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  mimeFromDataUrl,
+  omitUndefined,
+  parseDataUrl,
+  resolveBridgePortFromEnv,
+  resolveControlPortFromEnv,
+} from '@vigame/protocol';
 
-const BRIDGE_PORT = Number(process.env['VIGAME_BRIDGE_PORT'] ?? 7777);
+import { BridgeServer } from './bridge-server.js';
+import { handleCliControlPost } from './cli-control-handler.js';
+import { mcpJsonResult, mcpTextResult, textBlock, textBlockJson } from './mcp-content.js';
+import { asset_manifest, assetToolDefs, placeholder_asset } from './tools/assets.js';
+import { act_and_observe, compoundToolDefs, watch_for } from './tools/compound.js';
+import {
+  eval_js,
+  get_errors,
+  inspect,
+  inspectToolDefs,
+  mutate,
+  scene_graph,
+} from './tools/inspect.js';
+import { perf_snapshot, perfToolDefs } from './tools/perf.js';
+import { init_project, project_context, projectToolDefs, update_context } from './tools/project.js';
+import {
+  fuzz_test,
+  record,
+  run_playtest,
+  simulate_input,
+  testingToolDefs,
+} from './tools/testing.js';
+import { track, trackingToolDefs } from './tools/tracking.js';
+import { debug_screenshot, screenshot, visualToolDefs, watch } from './tools/visual.js';
 
-async function main() {
-  const bridge = new GameBridge(BRIDGE_PORT);
+/** All registered tool definitions in one flat array. */
+const ALL_TOOL_DEFS = [
+  ...visualToolDefs,
+  ...inspectToolDefs,
+  ...testingToolDefs,
+  ...projectToolDefs,
+  ...assetToolDefs,
+  ...perfToolDefs,
+  ...compoundToolDefs,
+  ...trackingToolDefs,
+];
 
-  bridge.on('connect', () => {
-    process.stderr.write('[vigame-mcp] Game client connected\n');
+type ToolArgs = Record<string, unknown>;
+
+export async function startServer(): Promise<void> {
+  const bridge = new BridgeServer(resolveBridgePortFromEnv());
+
+  const server = new Server(
+    { name: 'vigame-mcp', version: '0.1.0' },
+    { capabilities: { tools: {} } },
+  );
+
+  // -------------------------------------------------------------------------
+  // List tools
+  // -------------------------------------------------------------------------
+  server.setRequestHandler(ListToolsRequestSchema, () => {
+    return {
+      tools: ALL_TOOL_DEFS.map((t) => ({
+        name: t.name,
+        description: t.description,
+        inputSchema: t.inputSchema,
+      })),
+    };
   });
-  bridge.on('disconnect', () => {
-    process.stderr.write('[vigame-mcp] Game client disconnected\n');
-  });
 
-  const server = new McpServer({
-    name: 'vigame',
-    version: '0.1.0',
-  });
+  // -------------------------------------------------------------------------
+  // Call tools
+  // -------------------------------------------------------------------------
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
+    const a = (args ?? {}) as ToolArgs;
 
-  server.tool('scene', 'Load, save, clear, or inspect the current scene', SceneInputSchema.shape, async (input) => {
-    const result = await sceneTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+    try {
+      switch (name) {
+        // --- Visual ---
+        case 'screenshot': {
+          const img = await screenshot(
+            bridge,
+            omitUndefined({
+              quality: a.quality as number | undefined,
+              maxWidth: a.maxWidth as number | undefined,
+              maxHeight: a.maxHeight as number | undefined,
+            }),
+          );
+          return { content: [img] };
+        }
+        case 'watch': {
+          const frames = await watch(bridge, {
+            seconds: a.seconds as number,
+            ...omitUndefined({
+              interval: a.interval as number | undefined,
+              diffThreshold: a.diffThreshold as number | undefined,
+              maxWidth: a.maxWidth as number | undefined,
+              maxHeight: a.maxHeight as number | undefined,
+            }),
+          });
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: `Captured ${frames.length} frames over ${a.seconds}s`,
+              },
+              ...frames.map((f) => f.image),
+            ],
+          };
+        }
 
-  server.tool('entity', 'Create, delete, clone, find, list, or rename entities', EntityInputSchema.shape, async (input) => {
-    const result = await entityTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+        // --- Inspect ---
+        case 'scene_graph': {
+          const graph = await scene_graph(
+            bridge,
+            omitUndefined({ depth: a.depth as number | undefined }),
+          );
+          return mcpTextResult(graph);
+        }
+        case 'inspect': {
+          const result = await inspect(bridge, { path: a.path as string });
+          return mcpJsonResult(result);
+        }
+        case 'mutate': {
+          const result = await mutate(bridge, {
+            path: a.path as string,
+            value: a.value,
+          });
+          return mcpJsonResult(result);
+        }
+        case 'eval_js': {
+          const result = await eval_js(bridge, { code: a.code as string });
+          return mcpJsonResult(result);
+        }
 
-  server.tool('component', 'Add, remove, set, get, or list components on entities', ComponentInputSchema.shape, async (input) => {
-    const result = await componentTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+        // --- Testing ---
+        case 'simulate_input': {
+          const result = await simulate_input(bridge, {
+            sequence: a.sequence as Parameters<typeof simulate_input>[1]['sequence'],
+          });
+          return mcpTextResult(`Dispatched ${result.executed} input events`);
+        }
+        case 'record': {
+          const result = await record(bridge, {
+            seconds: a.seconds as number,
+            ...omitUndefined({
+              screenshotInterval: a.screenshotInterval as number | undefined,
+              diffThreshold: a.diffThreshold as number | undefined,
+            }),
+          });
+          const images = result.frames.flatMap((f) => {
+            const url = f.screenshot;
+            if (url === undefined) return [];
+            const parsed = parseDataUrl(url);
+            if (!parsed) return [];
+            return [
+              {
+                type: 'image' as const,
+                data: parsed.base64,
+                mimeType: parsed.mimeType,
+              },
+            ];
+          });
+          const frameSummary = result.frames.map((f) => ({
+            timestamp: f.timestamp,
+            elapsed: f.elapsed,
+            ...(f.sceneGraph !== undefined ? { sceneGraph: f.sceneGraph } : {}),
+          }));
+          return {
+            content: [
+              textBlockJson({ frameCount: result.frames.length, frames: frameSummary }),
+              ...images,
+            ],
+          };
+        }
+        case 'run_playtest': {
+          const result = await run_playtest(bridge, {
+            ...omitUndefined({ name: a.name as string | undefined }),
+            spec: a.spec as Parameters<typeof run_playtest>[1]['spec'],
+          });
+          return {
+            content: [
+              textBlockJson({ name: result.name, passed: result.passed, results: result.results }),
+              ...result.screenshots.map((s) => ({
+                type: 'image' as const,
+                data: s.data,
+                mimeType: s.mimeType,
+              })),
+            ],
+          };
+        }
 
-  server.tool('transform', 'Set position, rotation, scale, or look_at for an entity', TransformInputSchema.shape, async (input) => {
-    const result = await transformTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+        // --- Project ---
+        case 'project_context': {
+          const ctx = project_context({});
+          return mcpTextResult(ctx);
+        }
+        case 'update_context': {
+          const result = update_context({
+            section: a.section as Parameters<typeof update_context>[0]['section'],
+            content: a.content as string,
+          });
+          return mcpTextResult(`Updated: ${result.updated}`);
+        }
+        case 'init_project': {
+          const result = init_project({
+            gameDescription: a.gameDescription as string,
+            renderer: a.renderer as 'three' | 'phaser',
+          });
+          return mcpTextResult(`Created project context:\n${result.created.join('\n')}`);
+        }
 
-  server.tool('query', 'Query entities by component, tag, name, or list all', QueryInputSchema.shape, async (input) => {
-    const result = await queryTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+        // --- Assets ---
+        case 'placeholder_asset': {
+          const result = placeholder_asset({
+            type: a.type as 'texture' | 'sprite',
+            width: a.width as number,
+            height: a.height as number,
+            ...omitUndefined({
+              color: a.color as string | undefined,
+              label: a.label as string | undefined,
+            }),
+          });
+          const placeholderMeta = {
+            width: result.width,
+            height: result.height,
+            format: result.format,
+          };
+          const parsedPlaceholder = parseDataUrl(result.dataUrl);
+          return {
+            content: [
+              textBlockJson(placeholderMeta),
+              {
+                type: 'image' as const,
+                data: parsedPlaceholder?.base64 ?? result.dataUrl.split(',')[1] ?? result.dataUrl,
+                mimeType: parsedPlaceholder?.mimeType ?? 'image/svg+xml',
+              },
+            ],
+          };
+        }
+        case 'asset_manifest': {
+          const result = asset_manifest(
+            omitUndefined({ projectDir: a.projectDir as string | undefined }),
+          );
+          return mcpJsonResult(result);
+        }
 
-  server.tool('runtime', 'Control game lifecycle: play, pause, step, stop, reset', RuntimeInputSchema.shape, async (input) => {
-    const result = await runtimeTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
+        // --- Perf ---
+        case 'perf_snapshot': {
+          const result = await perf_snapshot(bridge);
+          return mcpJsonResult(result);
+        }
 
-  server.tool('inspect', 'Get screenshot, world state, component schemas, or active systems', InspectInputSchema.shape, async (input) => {
-    const result = await inspectTool(input, bridge);
-    if (typeof result === 'object' && result.type === 'image') {
-      return { content: [{ type: 'image', data: result.data, mimeType: result.mimeType }] };
+        // --- Compound ---
+        case 'act_and_observe': {
+          const result = await act_and_observe(
+            bridge,
+            a as unknown as Parameters<typeof act_and_observe>[1],
+          );
+          if (result.imageData) {
+            return {
+              content: [
+                textBlock(result.textContent),
+                {
+                  type: 'image' as const,
+                  data: result.imageData.data,
+                  mimeType: result.imageData.mimeType,
+                },
+              ],
+            };
+          }
+          return mcpTextResult(result.textContent);
+        }
+        case 'watch_for': {
+          const result = await watch_for(bridge, a as unknown as Parameters<typeof watch_for>[1]);
+          if (result.imageData) {
+            return {
+              content: [
+                textBlock(result.textContent),
+                {
+                  type: 'image' as const,
+                  data: result.imageData.data,
+                  mimeType: result.imageData.mimeType,
+                },
+              ],
+            };
+          }
+          return mcpTextResult(result.textContent);
+        }
+
+        // --- Tracking ---
+        case 'track': {
+          const result = await track(bridge, a as unknown as Parameters<typeof track>[1]);
+          return mcpJsonResult(result);
+        }
+
+        // --- Errors ---
+        case 'get_errors': {
+          const result = await get_errors(bridge);
+          return mcpJsonResult(result);
+        }
+
+        // --- Debug visual ---
+        case 'debug_screenshot': {
+          const img = await debug_screenshot(bridge, {
+            ...omitUndefined({
+              boundingBoxes: a.boundingBoxes as boolean | undefined,
+              grid: a.grid as boolean | undefined,
+              quality: a.quality as number | undefined,
+            }),
+            ...(Array.isArray(a.properties) ? { properties: a.properties as string[] } : {}),
+          });
+          return { content: [img] };
+        }
+
+        // --- Fuzz testing ---
+        case 'fuzz_test': {
+          const result = await fuzz_test(bridge, {
+            duration_ms: a.duration_ms as number,
+            ...omitUndefined({
+              input_rate: a.input_rate as number | undefined,
+              include_mouse: a.include_mouse as boolean | undefined,
+            }),
+            ...(Array.isArray(a.keys) ? { keys: a.keys as string[] } : {}),
+            ...(Array.isArray(a.watch_paths) ? { watch_paths: a.watch_paths as string[] } : {}),
+          });
+          const content: Array<
+            { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+          > = [textBlockJson(result)];
+          if (result.first_issue_screenshot) {
+            const parsed = parseDataUrl(result.first_issue_screenshot);
+            content.push({
+              type: 'image' as const,
+              data:
+                parsed?.base64 ?? result.first_issue_screenshot.replace(/^data:[^;]+;base64,/, ''),
+              mimeType: parsed?.mimeType ?? mimeFromDataUrl(result.first_issue_screenshot),
+            });
+          }
+          return { content };
+        }
+
+        default:
+          return {
+            ...mcpTextResult(`Unknown tool: ${name}`),
+            isError: true,
+          };
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        ...mcpTextResult(`Error: ${message}`),
+        isError: true,
+      };
     }
-    return { content: [{ type: 'text', text: result as string }] };
   });
 
-  server.tool('vgx', 'Parse, serialize, validate, or patch VGX scene format', VgxInputSchema.shape, async (input) => {
-    const result = await vgxTool(input, bridge);
-    return { content: [{ type: 'text', text: result }] };
-  });
-
-  // MCP Resources
-  server.resource('current-scene', 'vigame://scene/current', async () => {
-    if (!bridge.connected) {
-      return { contents: [{ uri: 'vigame://scene/current', text: '<world renderer="three"></world>' }] };
+  // HTTP control server for CLI subcommands (port = bridge port + 1, default 7778)
+  const controlPort = resolveControlPortFromEnv();
+  const httpServer = createServer((req, res) => {
+    if (req.method !== 'POST') {
+      res.writeHead(405);
+      res.end();
+      return;
     }
-    const vgx = await bridge.send<string>('scene:save', {});
-    return { contents: [{ uri: 'vigame://scene/current', text: vgx }] };
+    let body = '';
+    req.on('data', (chunk: Buffer) => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      void (async () => {
+        const out = await handleCliControlPost(bridge, body);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify('error' in out ? { error: out.error } : { result: out.result }));
+      })();
+    });
   });
-
-  server.resource('component-schemas', 'vigame://schema/components', async () => {
-    if (!bridge.connected) {
-      return { contents: [{ uri: 'vigame://schema/components', text: '{}' }] };
-    }
-    const schemas = await bridge.send<Record<string, unknown>>('inspect', { action: 'schemas' });
-    return { contents: [{ uri: 'vigame://schema/components', text: JSON.stringify(schemas, null, 2) }] };
-  });
+  httpServer.listen(controlPort);
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write(`[vigame-mcp] Server running (bridge on port ${BRIDGE_PORT})\n`);
 }
-
-main().catch((err) => {
-  process.stderr.write(`[vigame-mcp] Fatal: ${err}\n`);
-  process.exit(1);
-});

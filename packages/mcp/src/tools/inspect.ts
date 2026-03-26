@@ -1,19 +1,161 @@
-import { z } from 'zod';
-import type { GameBridge } from '../bridge.js';
+import type { BridgeServer } from '../bridge-server.js';
 
-export const InspectInputSchema = z.object({
-  action: z.enum(['screenshot', 'world_state', 'schemas', 'systems']),
-});
+/** Result of a scene_graph call */
+export interface SceneGraphResult {
+  nodes: unknown;
+}
 
-export type InspectResult = string | { type: 'image'; data: string; mimeType: string };
+/** Result of an inspect call */
+export interface InspectResult {
+  path: string;
+  value: unknown;
+  type: string;
+}
 
-export async function inspectTool(input: z.infer<typeof InspectInputSchema>, bridge: GameBridge): Promise<InspectResult> {
-  if (input.action === 'screenshot') {
-    const dataUrl = await bridge.send<string>('inspect:screenshot', {});
-    // Return as base64 image
-    const base64 = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-    return { type: 'image', data: base64, mimeType: 'image/png' };
-  }
-  const result = await bridge.send<unknown>('inspect', input);
+/** Result of a mutate call */
+export interface MutateResult {
+  path: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+/**
+ * Retrieve the full scene graph from the running game.
+ * Returns the raw JSON representation, optionally limited to a depth.
+ */
+export async function scene_graph(bridge: BridgeServer, args: { depth?: number }): Promise<string> {
+  const result = await bridge.send('scene_graph', { depth: args.depth ?? null });
   return JSON.stringify(result, null, 2);
 }
+
+/**
+ * Inspect a specific property path in the running game (e.g. "scene.children[0].position").
+ * Returns the value and its JavaScript type.
+ */
+export async function inspect(
+  bridge: BridgeServer,
+  args: { path: string },
+): Promise<InspectResult> {
+  const result = (await bridge.send('inspect', { path: args.path })) as InspectResult;
+  return result;
+}
+
+/**
+ * Mutate a specific property path in the running game.
+ * Returns the old and new values for confirmation.
+ */
+export async function mutate(
+  bridge: BridgeServer,
+  args: { path: string; value: unknown },
+): Promise<MutateResult> {
+  const raw = (await bridge.send('mutate', {
+    path: args.path,
+    value: args.value,
+  })) as { success: true; oldValue: unknown };
+  return { path: args.path, oldValue: raw.oldValue, newValue: args.value };
+}
+
+/**
+ * Evaluate arbitrary JavaScript in the context of the running game.
+ * The code has access to the game's global scope (e.g. `scene`, `camera`, `game`).
+ * Returns the result or an error message.
+ */
+export async function eval_js(
+  bridge: BridgeServer,
+  args: { code: string },
+): Promise<{ result: unknown; error?: string }> {
+  const result = (await bridge.send('eval', { code: args.code })) as {
+    result: unknown;
+    error?: string;
+  };
+  return result;
+}
+
+export interface ErrorsResult {
+  errors: Array<{ type: string; message: string; stack?: string; timestamp: number }>;
+}
+
+/**
+ * Get all runtime errors captured by the bridge since it started.
+ * Includes uncaught exceptions, unhandled rejections, and console.error calls.
+ */
+export async function get_errors(bridge: BridgeServer): Promise<ErrorsResult> {
+  const result = (await bridge.send('get_errors', {})) as ErrorsResult;
+  return result;
+}
+
+/** Tool definitions for registration */
+export const inspectToolDefs = [
+  {
+    name: 'scene_graph',
+    description:
+      "Retrieve the full scene graph from the running game as formatted JSON. Use this to understand the game's object hierarchy.",
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        depth: {
+          type: 'number',
+          description: 'Maximum depth to traverse (omit for full tree)',
+          minimum: 1,
+        },
+      },
+    },
+  },
+  {
+    name: 'inspect',
+    description:
+      'Inspect a specific property path in the running game (e.g. "scene.children[0].position.x"). Returns the value and its JavaScript type.',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['path'],
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Dot/bracket notation path to the property',
+        },
+      },
+    },
+  },
+  {
+    name: 'mutate',
+    description:
+      'Set a property at a specific path in the running game. Returns old and new values.',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['path', 'value'],
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Dot/bracket notation path to the property',
+        },
+        value: {
+          description: 'The new value to set (any JSON-serializable value)',
+        },
+      },
+    },
+  },
+  {
+    name: 'eval_js',
+    description:
+      'Evaluate arbitrary JavaScript in the context of the running game. Useful for spawning objects, changing game state, or calling game functions. Has full access to the game global scope.',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['code'],
+      properties: {
+        code: {
+          type: 'string',
+          description: 'JavaScript code to evaluate in the game context',
+        },
+      },
+    },
+  },
+  {
+    name: 'get_errors',
+    description:
+      'Get all runtime errors captured by the bridge: uncaught exceptions, unhandled promise rejections, and console.error calls. Returns empty array when no errors occurred.',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {},
+    },
+  },
+] as const;
