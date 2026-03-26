@@ -32,9 +32,23 @@ AI Agent (Claude) ←── MCP stdio ──→ @vigame/mcp ←── WebSocket 
 
 | Package | Description |
 |---------|-------------|
+| `@vigame/protocol` | Shared wire types, bridge command names, default ports — used by bridge, MCP, and CLI |
 | `@vigame/bridge` | Browser-side WebSocket runtime — gives AI live inspection and mutation of any Three.js or Phaser game |
-| `@vigame/mcp` | MCP server (stdio) — 20 tools for screenshots, scene inspection, mutation, playtesting, project context, and assets |
+| `@vigame/mcp` | MCP server (stdio) — tools for screenshots, scene inspection, mutation, playtesting, project context, and assets |
 | `@vigame/cli` | CLI — `vigame start` launches the MCP server; `vigame dev` starts Vite; inspection subcommands for human use |
+
+---
+
+## Development
+
+From the repo root (after `pnpm install`):
+
+```bash
+npm run check     # Full gate: lint + typecheck (parallel), build, test — logs in checks-outputs/
+pnpm install-hooks  # Optional: pre-commit + pre-push (requires pre-commit CLI)
+```
+
+CI runs the same `npm run check` as `pnpm install --frozen-lockfile` on Node 20 and 22.
 
 ---
 
@@ -202,6 +216,5 @@ vigame-mcp reads/writes a `.vigame/` directory so the AI can maintain memory acr
 git clone <repo-url>
 cd game-vibegame
 pnpm install
-pnpm build
-pnpm test
+npm run check     # or: pnpm build && pnpm test
 ```

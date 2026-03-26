@@ -17,11 +17,11 @@ pnpm build
 ## Monorepo structure
 
 ```
-packages/     # Engine library packages (@vigame/*)
+packages/     # @vigame/protocol, @vigame/bridge, @vigame/mcp, @vigame/cli
 docs/         # Documentation
 ```
 
-All packages use TypeScript in strict mode. Build artifacts go to each package's `dist/` directory and are gitignored.
+All packages use TypeScript in strict mode. Build artifacts go to each package's `dist/` directory and are gitignored. Use a **single** lockfile at the repo root (`pnpm-lock.yaml`); do not add per-package `pnpm-lock.yaml` files under `packages/`.
 
 ## Development workflow
 
@@ -42,7 +42,7 @@ To work on a single package, `cd` into it and run `pnpm dev`, `pnpm test`, etc. 
 
 ## Adding a new package
 
-1. Copy an existing package as a template (e.g. `cp -r packages/input packages/my-package`).
+1. Copy an existing package as a template (e.g. `cp -r packages/protocol packages/my-package`).
 2. Update `package.json` — set `"name": "@vigame/my-package"` and adjust dependencies.
 3. The package is picked up automatically because `pnpm-workspace.yaml` includes `"packages/*"`.
 4. If the package needs its own build/test pipeline entry, add it to `turbo.json` under `tasks`. Most packages inherit the default pipeline so this step is often unnecessary.
@@ -68,42 +68,20 @@ Scope (in parentheses) is optional but encouraged for package-specific changes.
 ## Pull request guidelines
 
 - **Tests required** for all new features and bug fixes. Tests live in `src/__tests__/` inside each package and use Vitest.
-- **All CI checks must pass** — build, test, and lint — before a PR can be merged.
+- **All CI checks must pass** — `npm run check` (lint, typecheck, build, test) matches what runs in GitHub Actions — before a PR can be merged.
 - Keep PRs focused. One concern per PR makes review faster.
 - Reference any related issues in the PR description.
 - Breaking changes must be called out explicitly in the PR description and commit message with a `BREAKING CHANGE:` footer.
 
 ## Architecture notes
 
-### ECS pattern
+vigame is a **toolchain** for AI-assisted game development: it does not replace Three.js or Phaser.
 
-vigame is built on an Entity-Component-System (ECS) architecture provided by `@vigame/core`.
+| Package | Role |
+|---------|------|
+| `@vigame/protocol` | Shared wire types, bridge command names, default ports, helpers |
+| `@vigame/bridge` | Injected into the browser — WebSocket to MCP, screenshots, inspect/mutate, playtesting helpers |
+| `@vigame/mcp` | MCP server over stdio — tools the AI calls; proxies to the bridge over WebSocket |
+| `@vigame/cli` | `vigame` binary — `start`, `dev`, and inspection commands that talk to the running bridge |
 
-- **Entities** are integer IDs (`EntityId`).
-- **Components** are plain data objects attached to entities, defined with `defineComponent`.
-- **Systems** are functions that iterate entities and mutate component data, defined with `defineSystem` and registered via `addSystem`. Systems run in phase order (`Phase.PreUpdate → Update → PostUpdate → Render`).
-- The **World** object owns all state and is passed to every system and plugin.
-
-### Plugin system
-
-Plugins implement the `VibePlugin` interface and are registered via `registerPlugin(world, plugin)`. A plugin can register systems, declare VGX tag handlers, and expose teardown logic. Plugins declare their dependencies so vigame ensures correct registration order.
-
-### VGX format
-
-VGX is an XML scene description format consumed by `@vigame/scene`. A VGX document describes entities, components, prefabs, and instances:
-
-```xml
-<world renderer="three">
-  <config gravity="0 -9.81 0" clear-color="#87ceeb" />
-  <entity name="Player" tag="hero">
-    <transform pos="0 2 0" />
-    <health current="100" max="100" />
-  </entity>
-  <prefab name="Coin">
-    <mesh shape="cylinder" color="#ffd700" />
-  </prefab>
-  <instance prefab="Coin" pos="3 1 0" />
-</world>
-```
-
-`hydrateScene` takes a parsed VGX document and a World and creates entities, dispatching each component element to the matching VGX tag handler registered by a plugin.
+Your game code stays ordinary Three.js or Phaser; you add the bridge so the AI can see and steer the running game.

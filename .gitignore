@@ -2,6 +2,8 @@ node_modules
 dist
 .turbo
 checks-outputs/
+# pnpm workspace uses a single lockfile at repo root only
+packages/**/pnpm-lock.yaml
 *.local
 .env
 .env.*

@@ -1,5 +1,7 @@
 # vigame — Full Reference
 
+> **Repo note:** The published monorepo ships `@vigame/protocol`, `@vigame/bridge`, `@vigame/mcp`, and `@vigame/cli` — MCP + browser bridge for **vanilla** Three.js or Phaser. The ECS/VGX/plugin APIs below are **not** in this repository; treat them as design background, not as importable packages.
+
 > An open-source game engine built for AI agents. Build games by generating VGX (vigame XML) scenes. Rendered via three.js (3D) or Phaser (2D). Full MCP server for live AI-to-game control.
 
 ---
