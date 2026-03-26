@@ -1,0 +1,19 @@
+{
+  "name": "@vigame/example-hello-world-3d",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vigame/core": "workspace:*",
+    "@vigame/renderer-three": "workspace:*",
+    "@vigame/scene": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0"
+  }
+}

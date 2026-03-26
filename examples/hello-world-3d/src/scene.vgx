@@ -1,0 +1,37 @@
+<world renderer="three">
+  <config clear-color="#87ceeb" />
+
+  <entity name="Camera">
+    <transform pos="0 5 10" rx="-20" />
+    <camera fov="75" />
+  </entity>
+
+  <entity name="Sun">
+    <transform pos="10 20 10" />
+    <directional-light color="#ffffff" intensity="1.2" cast-shadow="true" />
+  </entity>
+
+  <entity name="Sky">
+    <ambient-light color="#b0d8ff" intensity="0.4" />
+  </entity>
+
+  <entity name="Ground">
+    <transform pos="0 -0.5 0" />
+    <mesh shape="box" size="50 1 50" color="#4a7c59" receive-shadow="true" cast-shadow="false" />
+  </entity>
+
+  <entity name="RedCube">
+    <transform pos="-2 1 0" />
+    <mesh shape="box" size="2 2 2" color="#e74c3c" />
+  </entity>
+
+  <entity name="YellowSphere">
+    <transform pos="2 1 0" />
+    <mesh shape="sphere" size="1" color="#f1c40f" />
+  </entity>
+
+  <entity name="BlueCapsule">
+    <transform pos="0 1.5 -3" />
+    <mesh shape="capsule" size="0.5 2" color="#3498db" />
+  </entity>
+</world>
