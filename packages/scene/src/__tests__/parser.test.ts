@@ -1,6 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parseVGX } from '../parser.js';
 import { serializeVGX } from '../serializer.js';
+import { hydrateScene } from '../hydrate.js';
+import type { World, EntityId, VibePlugin } from '@vigame/core';
+import {
+  createWorld,
+  addEntity,
+  addTag,
+  setEntityName,
+  hasTag,
+  getAllEntities,
+} from '@vigame/core';
 
 describe('parseVGX', () => {
   it('parses a simple entity with two components', () => {
@@ -116,6 +126,16 @@ describe('parseVGX', () => {
     expect(rb.props['sensor']).toBe(true);
   });
 
+  it('throws on unknown renderer attribute', () => {
+    const xml = `<world renderer="godot"><entity name="X" /></world>`;
+    expect(() => parseVGX(xml)).toThrow(/unknown renderer/i);
+  });
+
+  it('throws when <world> root element is missing', () => {
+    const xml = `<scene><entity name="X" /></scene>`;
+    expect(() => parseVGX(xml)).toThrow(/missing.*world/i);
+  });
+
   it('round-trips: parse → serialize → parse gives identical structure', () => {
     const xml = `
       <world renderer="three">
@@ -149,5 +169,118 @@ describe('parseVGX', () => {
 
     expect(world2.instances).toHaveLength(world1.instances.length);
     expect(world2.instances[0]!.prefab).toBe(world1.instances[0]!.prefab);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// hydrateScene
+// ---------------------------------------------------------------------------
+
+/** Build a minimal world with stub VGX tag handlers for testing hydration. */
+function makeTestWorld() {
+  const applied: Array<{ tag: string; eid: EntityId; attrs: Record<string, string> }> = [];
+
+  const plugin: VibePlugin = {
+    name: 'StubPlugin',
+    setup(_w: World) {},
+    vgxTags() {
+      return {
+        transform(_w: World, eid: EntityId, attrs: Record<string, string>) {
+          applied.push({ tag: 'transform', eid, attrs });
+        },
+        mesh(_w: World, eid: EntityId, attrs: Record<string, string>) {
+          applied.push({ tag: 'mesh', eid, attrs });
+        },
+      };
+    },
+  };
+
+  const world = createWorld({ plugins: [plugin] });
+  return { world, applied };
+}
+
+describe('hydrateScene', () => {
+  it('creates entities with names, tags, and components', () => {
+    const { world, applied } = makeTestWorld();
+
+    const xml = `
+      <world renderer="three">
+        <entity name="Player" tag="hero">
+          <transform pos="0 2 0" />
+          <mesh shape="capsule" color="#ff0000" />
+        </entity>
+      </world>
+    `;
+
+    hydrateScene(parseVGX(xml), world);
+
+    const entities = getAllEntities(world);
+    expect(entities).toHaveLength(1);
+    const eid = entities[0]!;
+
+    expect(hasTag(world, eid, 'hero')).toBe(true);
+    expect(applied.filter((a) => a.tag === 'transform')).toHaveLength(1);
+    expect(applied.filter((a) => a.tag === 'mesh')).toHaveLength(1);
+    expect(applied.find((a) => a.tag === 'transform')!.attrs['pos']).toBe('0 2 0');
+  });
+
+  it('instantiates prefab instances', () => {
+    const { world, applied } = makeTestWorld();
+
+    const xml = `
+      <world renderer="three">
+        <prefab name="Coin">
+          <mesh shape="cylinder" color="#ffd700" />
+        </prefab>
+        <instance prefab="Coin" pos="3 1 0" />
+        <instance prefab="Coin" pos="6 2 0" />
+      </world>
+    `;
+
+    hydrateScene(parseVGX(xml), world);
+
+    // Two instances → two entities
+    expect(getAllEntities(world)).toHaveLength(2);
+    // Each instance should have a mesh and a synthesised transform
+    const meshApps = applied.filter((a) => a.tag === 'mesh');
+    expect(meshApps).toHaveLength(2);
+    const transformApps = applied.filter((a) => a.tag === 'transform');
+    expect(transformApps).toHaveLength(2);
+    expect(transformApps[0]!.attrs['pos']).toBe('3 1 0');
+    expect(transformApps[1]!.attrs['pos']).toBe('6 2 0');
+  });
+
+  it('warns and skips unknown prefab references', () => {
+    const { world } = makeTestWorld();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const xml = `
+      <world renderer="three">
+        <instance prefab="Ghost" pos="0 0 0" />
+      </world>
+    `;
+
+    hydrateScene(parseVGX(xml), world);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"Ghost"'));
+    expect(getAllEntities(world)).toHaveLength(0);
+    warnSpy.mockRestore();
+  });
+
+  it('warns but continues when tag handler is missing', () => {
+    const { world } = makeTestWorld();
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const xml = `
+      <world renderer="three">
+        <entity name="X">
+          <unknown-component foo="bar" />
+        </entity>
+      </world>
+    `;
+
+    hydrateScene(parseVGX(xml), world);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('unknown-component'));
+    expect(getAllEntities(world)).toHaveLength(1); // entity still created
+    warnSpy.mockRestore();
   });
 });

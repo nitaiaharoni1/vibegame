@@ -10,7 +10,10 @@
   "dependencies": {
     "@vigame/core": "workspace:*",
     "@vigame/renderer-three": "workspace:*",
-    "@vigame/scene": "workspace:*"
+    "@vigame/scene": "workspace:*",
+    "@vigame/input": "workspace:*",
+    "@vigame/mcp": "workspace:*",
+    "@vigame/gameplay": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

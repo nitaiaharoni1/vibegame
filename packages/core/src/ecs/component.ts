@@ -372,6 +372,8 @@ export function getAllComponentsOnEntity(
 ): Array<{ name: string; data: unknown }> {
   const result: Array<{ name: string; data: unknown }> = [];
   for (const [name, store] of world.components) {
+    // Skip internal bookkeeping components
+    if (name.startsWith('__')) continue;
     if (store.has(eid)) {
       result.push({ name, data: store.get(eid) });
     }

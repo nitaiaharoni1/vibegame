@@ -1,0 +1,103 @@
+# vigame
+
+> An open-source game engine built for AI agents. Build games by generating VGX (vigame XML) scenes. Rendered via three.js (3D) or Phaser (2D). Full MCP server for live AI-to-game control.
+
+## Key Concepts
+
+**VGX format** — Declare your entire game scene in XML. AI generates this reliably.
+**ECS** — Entity-Component-System architecture. Everything is data + logic.
+**MCP server** — AI agents control running games via 8 MCP tools.
+**Plugins** — Engine is fully plugin-based. Renderer, physics, input, gameplay are all plugins.
+
+## Quick Start
+
+```xml
+<world renderer="three">
+  <config gravity="0 -9.81 0" clear-color="#87ceeb" />
+  <entity name="Player" tag="player">
+    <transform pos="0 2 0" />
+    <mesh shape="capsule" color="#ff6b35" />
+    <health current="100" max="100" />
+  </entity>
+  <entity name="Ground">
+    <transform pos="0 -0.5 0" />
+    <mesh shape="box" size="50 1 50" color="#4a7c59" />
+    <rigid-body type="static" />
+  </entity>
+</world>
+```
+
+## Packages
+
+- `@vigame/core` — ECS world, entities, components, systems, plugins, events
+- `@vigame/scene` — VGX parser, serializer, hydrator
+- `@vigame/renderer-three` — three.js 3D renderer plugin
+- `@vigame/input` — keyboard/mouse input plugin
+- `@vigame/physics` — Rapier 3D physics plugin
+- `@vigame/gameplay` — health, inventory, score, collectibles
+- `@vigame/mcp` — MCP server + WebSocket bridge
+
+## MCP Tools (for AI agents)
+
+- `scene` — load/save/clear/info
+- `entity` — create/delete/find/list/rename
+- `component` — add/remove/set/get/list_available
+- `transform` — set_position/set_rotation/set_scale/look_at
+- `query` — by_component/by_tag/by_name/all
+- `runtime` — play/pause/step/stop/reset
+- `inspect` — screenshot/world_state/schemas/systems
+- `vgx` — parse/serialize/validate/patch
+
+## Configure MCP (Claude Code)
+
+Add to your `.claude/settings.json`:
+```json
+{
+  "mcpServers": {
+    "vigame": {
+      "command": "npx",
+      "args": ["vigame-mcp"],
+      "env": { "VIGAME_BRIDGE_PORT": "7777" }
+    }
+  }
+}
+```
+
+Then run your game with `VigameBridgePlugin()` registered, and the AI can control it live.
+
+## VGX Tag Reference
+
+### World attributes
+- `renderer` — "three" (3D) or "phaser" (2D)
+
+### Config
+- `gravity` — "x y z" (default: "0 -9.81 0")
+- `clear-color` — hex color
+
+### Transform (3D)
+- `pos` — "x y z" (position)
+- `rot` — "x y z" rotation in degrees (shorthand vector form)
+- `rx`, `ry`, `rz` — rotation in degrees per axis (alternative to `rot`)
+- `scale` — "x y z" scale (shorthand vector form)
+- `sx`, `sy`, `sz` — scale per axis (alternative to `scale`; default: 1)
+
+### Mesh
+- `shape` — box | sphere | capsule | cylinder | cone | plane | torus
+- `color` — hex color
+- `size` — varies by shape
+- `wireframe` — true/false
+- `cast-shadow` — true/false
+
+### RigidBody
+- `type` — dynamic | static | kinematic-position | kinematic-velocity
+- `mass` — number
+- `gravity-scale` — number
+
+### Health
+- `current` — number (default: 100)
+- `max` — number (default: 100)
+- `regen-rate` — HP/second (default: 0)
+
+### Collectible
+- `type` — string (e.g. "coin", "powerup")
+- `value` — number

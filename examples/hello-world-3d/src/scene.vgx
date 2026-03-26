@@ -1,37 +1,208 @@
 <world renderer="three">
-  <config clear-color="#87ceeb" />
 
-  <entity name="Camera">
-    <transform pos="0 5 10" rx="-20" />
-    <camera fov="75" />
+  <config clear-color="#0a0a2e" gravity="0 -9.8 0" />
+
+  <!-- Lights -->
+  <entity name="sun-light" tag="light">
+    <transform pos="20 40 20" rx="-45" ry="30" rz="0" />
+    <directional-light color="#ffe8c0" intensity="1.4" cast-shadow="true" />
   </entity>
 
-  <entity name="Sun">
-    <transform pos="10 20 10" />
-    <directional-light color="#ffffff" intensity="1.2" cast-shadow="true" />
+  <entity name="ambient" tag="light">
+    <ambient-light color="#1a1a4e" intensity="0.5" />
   </entity>
 
-  <entity name="Sky">
-    <ambient-light color="#b0d8ff" intensity="0.4" />
+  <!-- Camera -->
+  <entity name="main-camera" tag="camera">
+    <transform pos="0 28 48" rx="-28" ry="0" rz="0" />
+    <camera fov="70" />
   </entity>
 
-  <entity name="Ground">
-    <transform pos="0 -0.5 0" />
-    <mesh shape="box" size="50 1 50" color="#4a7c59" receive-shadow="true" cast-shadow="false" />
+  <!-- Base Floor -->
+  <entity name="floor" tag="floor">
+    <transform pos="0 0 0" />
+    <mesh shape="box" size="60 1 60" color="#2a2d35" cast-shadow="false" receive-shadow="true" />
   </entity>
 
-  <entity name="RedCube">
-    <transform pos="-2 1 0" />
-    <mesh shape="box" size="2 2 2" color="#e74c3c" />
+  <!-- Raised Platforms -->
+  <entity name="platform-north" tag="platform">
+    <transform pos="0 3 -18" />
+    <mesh shape="box" size="20 1 10" color="#3a3f4a" cast-shadow="true" receive-shadow="true" />
   </entity>
 
-  <entity name="YellowSphere">
-    <transform pos="2 1 0" />
-    <mesh shape="sphere" size="1" color="#f1c40f" />
+  <entity name="platform-east" tag="platform">
+    <transform pos="18 5 0" />
+    <mesh shape="box" size="10 1 20" color="#35404a" cast-shadow="true" receive-shadow="true" />
   </entity>
 
-  <entity name="BlueCapsule">
-    <transform pos="0 1.5 -3" />
-    <mesh shape="capsule" size="0.5 2" color="#3498db" />
+  <entity name="platform-west" tag="platform">
+    <transform pos="-18 5 0" />
+    <mesh shape="box" size="10 1 20" color="#354040" cast-shadow="true" receive-shadow="true" />
   </entity>
+
+  <entity name="platform-south" tag="platform">
+    <transform pos="0 3 18" />
+    <mesh shape="box" size="20 1 10" color="#3a3f4a" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="platform-center-high" tag="platform">
+    <transform pos="0 8 0" />
+    <mesh shape="box" size="12 1 12" color="#404550" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="platform-ne" tag="platform">
+    <transform pos="12 11 -12" />
+    <mesh shape="box" size="8 1 8" color="#2e3a4a" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="platform-nw" tag="platform">
+    <transform pos="-12 7 -12" />
+    <mesh shape="box" size="8 1 8" color="#2e4a3a" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="platform-se" tag="platform">
+    <transform pos="12 9 12" />
+    <mesh shape="box" size="8 1 8" color="#3a2e4a" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="platform-sw" tag="platform">
+    <transform pos="-12 6 12" />
+    <mesh shape="box" size="8 1 8" color="#4a3a2e" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <!-- Player -->
+  <entity name="player" tag="player">
+    <transform pos="0 9.5 0" />
+    <mesh shape="capsule" size="0.5 1.8" color="#ff6a00" cast-shadow="true" receive-shadow="false" />
+    <health current="100" max="100" />
+    <score value="0" multiplier="2" />
+    <inventory capacity="20" gold="0" />
+  </entity>
+
+  <!-- Obstacles -->
+  <entity name="obstacle-1" tag="obstacle">
+    <transform pos="5 9.5 3" ry="25" />
+    <mesh shape="box" size="1.5 2.5 1.5" color="#cc2244" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-2" tag="obstacle">
+    <transform pos="-4 9.5 -4" ry="15" />
+    <mesh shape="cylinder" size="0.8 3" color="#2244cc" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-3" tag="obstacle">
+    <transform pos="18 6.5 -6" ry="45" />
+    <mesh shape="box" size="2 2 2" color="#22aa44" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-4" tag="obstacle">
+    <transform pos="-18 6.5 6" ry="60" />
+    <mesh shape="cylinder" size="1 4" color="#cc8800" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-5" tag="obstacle">
+    <transform pos="0 4.5 -20" ry="10" />
+    <mesh shape="box" size="3 2 1" color="#aa22cc" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-6" tag="obstacle">
+    <transform pos="12 12.5 -12" ry="30" />
+    <mesh shape="cylinder" size="0.6 2.5" color="#00ccaa" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="obstacle-7" tag="obstacle">
+    <transform pos="-6 8.5 12" ry="55" />
+    <mesh shape="box" size="1.5 3 1.5" color="#ff4488" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <!-- Decorative Torus Rings -->
+  <entity name="ring-1" tag="decor">
+    <transform pos="0 14 0" rx="15" ry="0" rz="30" />
+    <mesh shape="torus" size="4 0.3" color="#00eeff" cast-shadow="true" receive-shadow="false" />
+  </entity>
+
+  <entity name="ring-2" tag="decor">
+    <transform pos="18 9 0" rx="90" ry="20" rz="0" />
+    <mesh shape="torus" size="3 0.25" color="#ff44ff" cast-shadow="true" receive-shadow="false" />
+  </entity>
+
+  <entity name="ring-3" tag="decor">
+    <transform pos="-18 9 0" rx="90" ry="-20" rz="0" />
+    <mesh shape="torus" size="3 0.25" color="#44ffaa" cast-shadow="true" receive-shadow="false" />
+  </entity>
+
+  <entity name="ring-4" tag="decor">
+    <transform pos="0 4.5 -20" rx="0" ry="0" rz="90" />
+    <mesh shape="torus" size="2.5 0.2" color="#ffaa00" cast-shadow="true" receive-shadow="false" />
+  </entity>
+
+  <entity name="ring-5" tag="decor">
+    <transform pos="0 4.5 20" rx="0" ry="0" rz="90" />
+    <mesh shape="torus" size="2.5 0.2" color="#aabb00" cast-shadow="true" receive-shadow="false" />
+  </entity>
+
+  <!-- Structural Pillars -->
+  <entity name="pillar-ne" tag="structure">
+    <transform pos="12 5.5 -12" />
+    <mesh shape="cylinder" size="0.6 11" color="#555a66" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="pillar-nw" tag="structure">
+    <transform pos="-12 3.5 -12" />
+    <mesh shape="cylinder" size="0.6 7" color="#556066" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="pillar-se" tag="structure">
+    <transform pos="12 4.5 12" />
+    <mesh shape="cylinder" size="0.6 9" color="#605566" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <entity name="pillar-sw" tag="structure">
+    <transform pos="-12 3 12" />
+    <mesh shape="cylinder" size="0.6 6" color="#665560" cast-shadow="true" receive-shadow="true" />
+  </entity>
+
+  <!-- Coin Prefab + Instances -->
+  <prefab name="coin">
+    <mesh shape="cylinder" size="0.3 0.1" color="#ffd700" cast-shadow="false" receive-shadow="false" />
+    <collectible type="coin" value="10" />
+  </prefab>
+
+  <!-- Coins on base floor -->
+  <instance prefab="coin" pos="-6 1.6 6" />
+  <instance prefab="coin" pos="6 1.6 6" />
+  <instance prefab="coin" pos="-6 1.6 -6" />
+  <instance prefab="coin" pos="6 1.6 -6" />
+  <instance prefab="coin" pos="0 1.6 8" />
+  <instance prefab="coin" pos="8 1.6 0" />
+  <instance prefab="coin" pos="-8 1.6 0" />
+
+  <!-- Coins on north platform -->
+  <instance prefab="coin" pos="-4 4.6 -18" />
+  <instance prefab="coin" pos="0 4.6 -18" />
+  <instance prefab="coin" pos="4 4.6 -18" />
+
+  <!-- Coins on east platform -->
+  <instance prefab="coin" pos="18 6.6 4" />
+  <instance prefab="coin" pos="18 6.6 -4" />
+
+  <!-- Coins on center-high platform -->
+  <instance prefab="coin" pos="-3 9.6 0" />
+  <instance prefab="coin" pos="3 9.6 2" />
+  <instance prefab="coin" pos="0 9.6 -3" />
+
+  <!-- Coin on ne platform -->
+  <instance prefab="coin" pos="12 12.6 -12" />
+
+  <!-- Gem Prefab + Instances -->
+  <prefab name="gem">
+    <mesh shape="sphere" size="0.35" color="#00ffcc" cast-shadow="true" receive-shadow="false" />
+    <collectible type="gem" value="100" />
+  </prefab>
+
+  <instance prefab="gem" pos="0 9.8 0" />
+  <instance prefab="gem" pos="12 12.8 -14" />
+  <instance prefab="gem" pos="-18 6.8 -4" />
+  <instance prefab="gem" pos="0 4.8 20" />
+
 </world>

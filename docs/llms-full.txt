@@ -1,0 +1,617 @@
+# vigame — Full Reference
+
+> An open-source game engine built for AI agents. Build games by generating VGX (vigame XML) scenes. Rendered via three.js (3D) or Phaser (2D). Full MCP server for live AI-to-game control.
+
+---
+
+## Architecture Overview
+
+vigame is built on an Entity-Component-System (ECS) architecture:
+
+- **World** — the root container holding all entities, components, systems, plugins, and events
+- **Entity** — a plain integer ID; carries no data itself
+- **Component** — typed data attached to an entity (e.g., Health, Transform, Mesh)
+- **System** — a function that runs every frame and operates on entities matching a query
+- **Plugin** — a self-contained feature bundle (renderer, input, physics, gameplay…)
+- **Event** — fire-and-forget typed messages for decoupled communication
+
+---
+
+## VGX Format (vigame XML)
+
+VGX is the scene description language. AI agents generate this XML to declare entire game worlds.
+
+### Full document structure
+
+```xml
+<world renderer="three">
+  <config clear-color="#87ceeb" gravity="0 -9.81 0" />
+
+  <entity name="Player" tag="player">
+    <transform pos="0 2 0" rot="0 0 0" scale="1 1 1" />
+    <mesh shape="capsule" size="0.5 2" color="#ff6b35" cast-shadow="true" />
+    <rigid-body type="dynamic" mass="70" gravity-scale="1" />
+    <health current="100" max="100" regen-rate="1" />
+    <inventory capacity="20" gold="0" />
+    <score value="0" multiplier="1" />
+  </entity>
+
+  <entity name="Coin" tag="collectible">
+    <transform pos="3 1 0" />
+    <mesh shape="sphere" size="0.3" color="#f1c40f" />
+    <collectible type="coin" value="10" />
+  </entity>
+
+  <entity name="Ground">
+    <transform pos="0 -0.5 0" />
+    <mesh shape="box" size="50 1 50" color="#4a7c59" receive-shadow="true" />
+    <rigid-body type="static" />
+  </entity>
+
+  <entity name="Camera">
+    <transform pos="0 5 10" rx="-20" />
+    <camera fov="75" near="0.1" far="1000" />
+  </entity>
+
+  <entity name="Sun">
+    <transform pos="10 20 10" />
+    <directional-light color="#ffffff" intensity="1.2" cast-shadow="true" />
+  </entity>
+
+  <entity name="Sky">
+    <ambient-light color="#b0d8ff" intensity="0.4" />
+  </entity>
+</world>
+```
+
+### World attributes
+
+| Attribute  | Values             | Description                   |
+|------------|--------------------|-------------------------------|
+| `renderer` | `three` / `phaser` | Which renderer plugin to use  |
+
+### `<config>` attributes
+
+| Attribute     | Default        | Description                       |
+|---------------|----------------|-----------------------------------|
+| `clear-color` | `#000000`      | Background/sky color (hex)        |
+| `gravity`     | `0 -9.81 0`    | Gravity vector "x y z"            |
+
+### `<transform>` attributes (3D)
+
+| Attribute | Default   | Description                       |
+|-----------|-----------|-----------------------------------|
+| `pos`     | `0 0 0`   | Position "x y z"                  |
+| `rot`     | `0 0 0`   | Euler rotation in degrees "x y z" |
+| `rx`      | `0`       | X rotation shorthand (degrees)    |
+| `ry`      | `0`       | Y rotation shorthand              |
+| `rz`      | `0`       | Z rotation shorthand              |
+| `scale`   | `1 1 1`   | Scale "x y z"                     |
+
+### `<mesh>` attributes
+
+| Attribute      | Default    | Description                                               |
+|----------------|------------|-----------------------------------------------------------|
+| `shape`        | `box`      | box, sphere, capsule, cylinder, cone, plane, torus        |
+| `color`        | `#ffffff`  | Hex color                                                 |
+| `size`         | shape-dep. | box: "w h d", sphere: radius, capsule: "r h", cyl: "r h" |
+| `wireframe`    | `false`    | Render as wireframe                                       |
+| `cast-shadow`  | `true`     | Whether mesh casts shadows                                |
+| `receive-shadow` | `true`   | Whether mesh receives shadows                             |
+
+### `<rigid-body>` attributes
+
+| Attribute      | Default     | Description                                               |
+|----------------|-------------|-----------------------------------------------------------|
+| `type`         | `dynamic`   | dynamic, static, kinematic-position, kinematic-velocity   |
+| `mass`         | `1`         | Mass in kg                                                |
+| `gravity-scale`| `1`         | Multiplier on gravity                                     |
+| `restitution`  | `0.3`       | Bounciness (0–1)                                          |
+| `friction`     | `0.7`       | Friction coefficient                                      |
+
+### `<camera>` attributes
+
+| Attribute | Default | Description        |
+|-----------|---------|--------------------|
+| `fov`     | `75`    | Field of view      |
+| `near`    | `0.1`   | Near clip plane    |
+| `far`     | `1000`  | Far clip plane     |
+
+### `<directional-light>` attributes
+
+| Attribute    | Default    | Description                  |
+|--------------|------------|------------------------------|
+| `color`      | `#ffffff`  | Light color                  |
+| `intensity`  | `1`        | Brightness                   |
+| `cast-shadow`| `false`    | Whether this light casts shadows |
+
+### `<ambient-light>` attributes
+
+| Attribute   | Default   | Description   |
+|-------------|-----------|---------------|
+| `color`     | `#ffffff` | Light color   |
+| `intensity` | `0.5`     | Brightness    |
+
+### `<health>` attributes (@vigame/gameplay)
+
+| Attribute    | Default | Description                    |
+|--------------|---------|--------------------------------|
+| `current`    | `100`   | Current HP                     |
+| `max`        | `100`   | Maximum HP                     |
+| `regen-rate` | `0`     | HP regenerated per second      |
+| `invincible` | `false` | If true, damage is ignored     |
+
+### `<inventory>` attributes (@vigame/gameplay)
+
+| Attribute  | Default | Description                  |
+|------------|---------|------------------------------|
+| `capacity` | `10`    | Max item slots               |
+| `gold`     | `0`     | Starting gold amount         |
+
+### `<score>` attributes (@vigame/gameplay)
+
+| Attribute    | Default | Description           |
+|--------------|---------|-----------------------|
+| `value`      | `0`     | Starting score        |
+| `multiplier` | `1`     | Score multiplier      |
+
+### `<collectible>` attributes (@vigame/gameplay)
+
+| Attribute   | Default   | Description                              |
+|-------------|-----------|------------------------------------------|
+| `type`      | `generic` | Collectible category (e.g. "coin")       |
+| `value`     | `1`       | Score/gold value when collected          |
+
+---
+
+## TypeScript API — @vigame/core
+
+### World lifecycle
+
+```typescript
+import { createWorld, startWorld, stopWorld, pauseWorld, resumeWorld, stepWorld } from '@vigame/core';
+
+const world = createWorld({ plugins: [MyPlugin()] });
+startWorld(world);   // starts the game loop (rAF in browser, setInterval in Node)
+pauseWorld(world);
+resumeWorld(world);
+stepWorld(world, 1/60); // manually advance one frame
+stopWorld(world);
+```
+
+### Entity operations
+
+```typescript
+import { addEntity, removeEntity, hasEntity, getAllEntities } from '@vigame/core';
+
+const eid = addEntity(world);
+removeEntity(world, eid);
+hasEntity(world, eid);        // boolean
+getAllEntities(world);         // EntityId[]
+```
+
+### Component operations
+
+```typescript
+import { defineComponent, Type, addComponent, removeComponent, getComponent, hasComponent, setComponent } from '@vigame/core';
+
+// Define a component schema
+const Velocity = defineComponent('Velocity', {
+  x: Type.Number({ default: 0 }),
+  y: Type.Number({ default: 0 }),
+  z: Type.Number({ default: 0 }),
+});
+
+// Use it
+const eid = addEntity(world);
+addComponent(world, eid, Velocity, { x: 5, z: -3 });
+const vel = getComponent(world, eid, Velocity);   // { x: 5, y: 0, z: -3 }
+setComponent(world, eid, Velocity, { x: 0 });      // partial update
+hasComponent(world, eid, Velocity);                // true
+removeComponent(world, eid, Velocity);
+```
+
+### Type builders
+
+```typescript
+Type.Number({ default: 0, min: 0, max: 100 })
+Type.String({ default: 'idle' })
+Type.Boolean({ default: false })
+Type.Vec2({ default: [0, 0] })
+Type.Vec3({ default: [0, 0, 0] })
+Type.Vec4({ default: [0, 0, 0, 0] })
+Type.Quaternion({ default: [0, 0, 0, 1] })
+Type.Array(Type.Number())
+Type.Object({ x: Type.Number(), y: Type.Number() })
+Type.Enum(['idle', 'walk', 'run'])
+Type.Ref()   // EntityId reference
+```
+
+### Query API
+
+```typescript
+import { query, queryFirst, queryTag, queryName } from '@vigame/core';
+
+const entities = query(world, [Transform, Velocity]);     // AND query
+const first = queryFirst(world, [Transform, Velocity]);   // first match or undefined
+const players = queryTag(world, 'player');                // by tag
+const cam = queryName(world, 'Camera');                   // by name (EntityId | undefined)
+```
+
+### Tags and names
+
+```typescript
+import { addTag, removeTag, hasTag, getEntityName, setEntityName } from '@vigame/core';
+
+addTag(world, eid, 'enemy');
+hasTag(world, eid, 'enemy');    // true
+removeTag(world, eid, 'enemy');
+setEntityName(world, eid, 'Boss');
+getEntityName(world, eid);      // 'Boss'
+```
+
+### System definition
+
+Systems run every frame in phase order. Phases:
+
+| Phase       | Value | Description                    |
+|-------------|-------|--------------------------------|
+| PreUpdate   | 0     | Input, timers, early logic     |
+| Update      | 1     | Main game logic                |
+| PostUpdate  | 2     | Physics resolution, late logic |
+| Render      | 3     | Rendering                      |
+
+```typescript
+import { defineSystem, Phase } from '@vigame/core';
+
+const MovementSystem = defineSystem({
+  name: 'Movement',
+  phase: Phase.Update,
+  after: ['Input'],   // optional ordering within phase
+  before: ['Physics'],
+  execute(world, delta) {
+    const entities = query(world, [Transform, Velocity]);
+    for (const eid of entities) {
+      const t = getComponent(world, eid, Transform)!;
+      const v = getComponent(world, eid, Velocity)!;
+      setComponent(world, eid, Transform, {
+        x: t.x + v.x * delta,
+        y: t.y + v.y * delta,
+        z: t.z + v.z * delta,
+      });
+    }
+  },
+});
+```
+
+### Event system
+
+```typescript
+import { defineEvent, emit, on, off } from '@vigame/core';
+
+const ExplosionEvent = defineEvent<{ position: [number, number, number]; radius: number }>('Explosion');
+
+// Subscribe
+const unsubscribe = on(world, ExplosionEvent, ({ position, radius }) => {
+  console.log('Explosion at', position, 'radius', radius);
+});
+
+// Emit
+emit(world, ExplosionEvent, { position: [0, 0, 0], radius: 5 });
+
+// Unsubscribe
+unsubscribe();
+// or
+off(world, ExplosionEvent, handler);
+```
+
+### Prefabs
+
+```typescript
+import { definePrefab, registerPrefab, instantiatePrefab } from '@vigame/core';
+
+const EnemyPrefab = definePrefab('Enemy', (world, overrides) => {
+  const eid = addEntity(world);
+  addComponent(world, eid, Health, { current: 50, max: 50 });
+  addComponent(world, eid, Transform, overrides?.transform ?? { x: 0, y: 0, z: 0 });
+  addTag(world, eid, 'enemy');
+  return eid;
+});
+
+registerPrefab(world, EnemyPrefab);
+const eid = instantiatePrefab(world, 'Enemy', { transform: { x: 5, y: 0, z: 0 } });
+```
+
+---
+
+## TypeScript API — @vigame/gameplay
+
+### Components
+
+```typescript
+import { Health, Inventory, Score, Collectible } from '@vigame/gameplay';
+
+addComponent(world, eid, Health, { current: 100, max: 100, regenRate: 2 });
+addComponent(world, eid, Inventory, { capacity: 10, gold: 0 });
+addComponent(world, eid, Score, { value: 0, multiplier: 1 });
+addComponent(world, eid, Collectible, { type: 'coin', value: 10 });
+```
+
+### Gameplay helper functions
+
+```typescript
+import { damage, heal, isAlive, addScore, collect } from '@vigame/gameplay';
+
+damage(world, eid, 25);            // reduces health by 25, emits DamageEvent, DeathEvent if 0
+damage(world, eid, 25, sourceEid); // optionally pass damage source
+heal(world, eid, 10);              // increases health up to max, emits HealEvent
+isAlive(world, eid);               // false if health === 0 (true if no Health component)
+addScore(world, eid, 100);         // adds 100 * multiplier to Score
+collect(world, playerEid, coinEid); // marks collected, adds score, adds gold if type='coin'
+```
+
+### Gameplay events
+
+```typescript
+import { DamageEvent, HealEvent, DeathEvent, CollectEvent } from '@vigame/gameplay';
+
+on(world, DamageEvent, ({ target, amount, source }) => { /* ... */ });
+on(world, HealEvent, ({ target, amount }) => { /* ... */ });
+on(world, DeathEvent, ({ entity }) => { /* respawn logic ... */ });
+on(world, CollectEvent, ({ collector, collectible, type, value }) => { /* ... */ });
+```
+
+### GameplayPlugin
+
+```typescript
+import { GameplayPlugin } from '@vigame/gameplay';
+
+const world = createWorld({
+  plugins: [
+    ThreeRendererPlugin({ canvas }),
+    GameplayPlugin(),
+  ],
+});
+```
+
+`GameplayPlugin` registers:
+- `HealthRegenSystem` (Phase.Update) — auto-heals entities with `regenRate > 0`
+- VGX tag handlers for `<health>`, `<inventory>`, `<score>`, `<collectible>`
+
+---
+
+## TypeScript API — @vigame/scene
+
+```typescript
+import { parseVGX, serializeVGX, hydrateScene } from '@vigame/scene';
+
+// Parse VGX string into an intermediate VGXWorld object
+const vgxWorld = parseVGX(xmlString);
+
+// Hydrate into an ECS world (applies all entities + components)
+hydrateScene(vgxWorld, world);
+
+// Serialize ECS world back to VGX string
+const xml = serializeVGX(world);
+```
+
+---
+
+## TypeScript API — @vigame/input
+
+```typescript
+import { InputPlugin, isKeyDown, isKeyJustPressed, getMousePosition, isMouseButtonDown } from '@vigame/input';
+
+const world = createWorld({ plugins: [InputPlugin(canvas)] });
+
+// Inside a system:
+isKeyDown(world, 'KeyW');           // true while W is held
+isKeyJustPressed(world, 'Space');   // true only on the frame Space was pressed
+isMouseButtonDown(world, 0);        // left button
+getMousePosition(world);            // { x, y } in canvas pixels
+```
+
+---
+
+## TypeScript API — @vigame/physics
+
+```typescript
+import { PhysicsPlugin } from '@vigame/physics';
+
+const world = createWorld({
+  plugins: [
+    PhysicsPlugin({ gravity: [0, -9.81, 0] }),
+  ],
+});
+
+// VGX <rigid-body> and <collider> tags are automatically handled
+// Use setComponent(world, eid, Transform, ...) to read back physics-simulated positions
+```
+
+---
+
+## Plugin Authoring
+
+A plugin is any object implementing `VibePlugin`:
+
+```typescript
+import type { VibePlugin, World, EntityId } from '@vigame/core';
+import { addComponent, defineComponent, Type, defineSystem, query } from '@vigame/core';
+
+const Temperature = defineComponent('Temperature', {
+  celsius: Type.Number({ default: 20 }),
+});
+
+const HeatSystem = defineSystem({
+  name: 'Heat',
+  phase: 1,
+  execute(world, delta) {
+    for (const eid of query(world, [Temperature])) {
+      // ...
+    }
+  },
+});
+
+export function TemperaturePlugin(): VibePlugin {
+  return {
+    name: 'TemperaturePlugin',
+    dependencies: [],           // optional: other plugin names that must be registered first
+    setup(world: World) {
+      // initialization (subscribe to events, set up resources, etc.)
+    },
+    systems(world: World) {
+      return [HeatSystem];
+    },
+    teardown(world: World) {
+      // cleanup on world stop
+    },
+    vgxTags() {
+      return {
+        temperature(world: World, eid: EntityId, attrs: Record<string, string>) {
+          addComponent(world, eid, Temperature, {
+            celsius: Number(attrs['celsius'] ?? '20'),
+          });
+        },
+      };
+    },
+  };
+}
+```
+
+---
+
+## MCP Tools Reference
+
+When `VigameBridgePlugin()` is registered in the running game, an AI agent connected via MCP can use these tools:
+
+### `scene`
+```
+action: load | save | clear | info
+vgx: string (for load)
+```
+
+### `entity`
+```
+action: create | delete | find | list | rename
+name: string
+tag: string
+new_name: string
+```
+
+### `component`
+```
+action: add | remove | set | get | list_available
+entity: EntityId | name string
+component: component name
+data: object (for add/set)
+```
+
+### `transform`
+```
+action: set_position | set_rotation | set_scale | look_at
+entity: EntityId | name string
+x, y, z: number
+target: EntityId | name string (for look_at)
+```
+
+### `query`
+```
+action: by_component | by_tag | by_name | all
+component: string
+tag: string
+name: string
+```
+
+### `runtime`
+```
+action: play | pause | step | stop | reset
+delta: number (for step)
+```
+
+### `inspect`
+```
+action: screenshot | world_state | schemas | systems
+```
+
+### `vgx`
+```
+action: parse | serialize | validate | patch
+vgx: string
+patch: object (for patch)
+```
+
+---
+
+## MCP Setup
+
+### In your game (browser)
+
+```typescript
+import { createWorld, startWorld } from '@vigame/core';
+import { VigameBridgePlugin } from '@vigame/mcp';
+
+const world = createWorld({
+  plugins: [
+    ThreeRendererPlugin({ canvas }),
+    GameplayPlugin(),
+    ...(import.meta.env.DEV ? [VigameBridgePlugin({ port: 7777 })] : []),
+  ],
+});
+startWorld(world);
+```
+
+### MCP server config (.claude/settings.json)
+
+```json
+{
+  "mcpServers": {
+    "vigame": {
+      "command": "npx",
+      "args": ["vigame-mcp"],
+      "env": { "VIGAME_BRIDGE_PORT": "7777" }
+    }
+  }
+}
+```
+
+---
+
+## System Phase Ordering
+
+Systems execute in this order every frame:
+
+1. **PreUpdate (0)** — Input capture, timer ticks
+2. **Update (1)** — Game logic, AI, movement, health regen
+3. **PostUpdate (2)** — Physics sync, collision response, late logic
+4. **Render (3)** — Three.js/Phaser scene sync and draw
+
+Within a phase, use `after: ['SystemName']` and `before: ['SystemName']` in the system definition for fine-grained ordering.
+
+---
+
+## Query API — cheat sheet
+
+```typescript
+// All entities with both components
+query(world, [Health, Transform])
+
+// First entity with component (or undefined)
+queryFirst(world, [Health])
+
+// Entities with a tag
+queryTag(world, 'enemy')
+
+// Entity by name (returns EntityId | undefined)
+queryName(world, 'Player')
+```
+
+---
+
+## Schema introspection
+
+```typescript
+import { getComponentSchemas, getRegisteredComponents } from '@vigame/core';
+
+getRegisteredComponents(world);  // string[] of component names in use
+getComponentSchemas(world);      // Record<name, JSON Schema object>
+```

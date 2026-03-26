@@ -553,6 +553,60 @@ describe("System", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getAllComponentsOnEntity
+// ---------------------------------------------------------------------------
+
+describe("getAllComponentsOnEntity", () => {
+  it("does not expose internal __tags__ or __name__ components", () => {
+    const world = createWorld();
+    const eid = addEntity(world);
+    const Pos = defineComponent("InspectPos", { x: Type.Number() });
+    addComponent(world, eid, Pos);
+    addTag(world, eid, "player");
+    setEntityName(world, eid, "Hero");
+
+    const all = getAllComponentsOnEntity(world, eid);
+    const names = all.map((c) => c.name);
+    expect(names).toContain("InspectPos");
+    expect(names).not.toContain("__tags__");
+    expect(names).not.toContain("__name__");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stepWorld error isolation
+// ---------------------------------------------------------------------------
+
+describe("stepWorld error isolation", () => {
+  it("continues executing remaining systems if one throws", () => {
+    const world = createWorld();
+    const order: string[] = [];
+
+    addSystem(world, defineSystem({
+      name: "Good1",
+      phase: Phase.Update,
+      execute: () => { order.push("good1"); },
+    }));
+    addSystem(world, defineSystem({
+      name: "Bad",
+      phase: Phase.Update,
+      after: ["Good1"],
+      execute: () => { throw new Error("system crash"); },
+    }));
+    addSystem(world, defineSystem({
+      name: "Good2",
+      phase: Phase.Update,
+      after: ["Bad"],
+      execute: () => { order.push("good2"); },
+    }));
+
+    // Should not throw, and Good2 should still run
+    expect(() => stepWorld(world, 0.016)).not.toThrow();
+    expect(order).toEqual(["good1", "good2"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // System ordering — after/before constraints and cycle detection
 // ---------------------------------------------------------------------------
 

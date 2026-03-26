@@ -7,6 +7,7 @@ import {
   addComponent,
   getComponent,
   hasComponent,
+  queryName,
   Phase,
 } from '@vigame/core';
 import {
@@ -81,7 +82,11 @@ function buildGeometry(shape: string, size: string): THREE.BufferGeometry {
       return new THREE.PlaneGeometry(get(0, 1), get(1, 1));
     case 'cone':
       return new THREE.ConeGeometry(get(0, 0.5), get(1, 1), 32);
+    case 'torus':
+      // size: radius tubeRadius (e.g. "1 0.4")
+      return new THREE.TorusGeometry(get(0, 1), get(1, 0.4), 16, 100);
     default:
+      console.warn(`[vigame] Unknown mesh shape "${shape}", falling back to box.`);
       return new THREE.BoxGeometry(1, 1, 1);
   }
 }
@@ -135,10 +140,18 @@ function ThreeRenderSystem(state: ThreeState) {
         obj.scale.set(transform.sx, transform.sy, transform.sz);
       }
 
-      // Remove orphaned meshes
+      // Remove orphaned meshes and dispose GPU resources
       for (const [eid, obj] of meshMap) {
         if (!world.entities.has(eid) || !hasComponent(world, eid, Mesh3D)) {
           scene.remove(obj);
+          if (obj instanceof THREE.Mesh) {
+            obj.geometry.dispose();
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach((m) => (m as THREE.Material).dispose());
+            } else {
+              (obj.material as THREE.Material).dispose();
+            }
+          }
           meshMap.delete(eid);
         }
       }
@@ -194,46 +207,42 @@ function ThreeRenderSystem(state: ThreeState) {
       }
 
       // --- Camera sync ---
-      const cameraEid = queryFirst(world, [Camera3D, Transform3D]);
+      // Find the active camera: prefer an entity with active:true, fall back to first found
+      let cameraEid: EntityId | undefined;
+      const cameraEntities = query(world, [Camera3D, Transform3D]);
+      for (const eid of cameraEntities) {
+        const cam = getComponent(world, eid, Camera3D)!;
+        if (cam.active) { cameraEid = eid; break; }
+        if (cameraEid === undefined) cameraEid = eid;
+      }
+
       if (cameraEid !== undefined) {
         const cam3d = getComponent(world, cameraEid, Camera3D)!;
         const transform = getComponent(world, cameraEid, Transform3D)!;
 
-        if (cam3d.active) {
-          camera.fov = cam3d.fov;
-          camera.near = cam3d.near;
-          camera.far = cam3d.far;
-          camera.updateProjectionMatrix();
+        camera.fov = cam3d.fov;
+        camera.near = cam3d.near;
+        camera.far = cam3d.far;
+        camera.updateProjectionMatrix();
 
-          camera.position.set(transform.px, transform.py, transform.pz);
-          camera.rotation.set(
-            THREE.MathUtils.degToRad(transform.rx),
-            THREE.MathUtils.degToRad(transform.ry),
-            THREE.MathUtils.degToRad(transform.rz),
-          );
-        }
+        camera.position.set(transform.px, transform.py, transform.pz);
+        camera.rotation.set(
+          THREE.MathUtils.degToRad(transform.rx),
+          THREE.MathUtils.degToRad(transform.ry),
+          THREE.MathUtils.degToRad(transform.rz),
+        );
       }
 
       // --- CameraFollow ---
       const followEid = queryFirst(world, [CameraFollow]);
       if (followEid !== undefined) {
         const follow = getComponent(world, followEid, CameraFollow)!;
-        // find target by name using queryName equivalent: scan names
-        // We use the world component directly
-        const nameStore = world.components.get('__name__');
-        if (nameStore && follow.targetName) {
-          for (const [tid, raw] of nameStore) {
-            const r = raw as unknown as { name: string };
-            if (r.name === follow.targetName && hasComponent(world, tid, Transform3D)) {
-              const t = getComponent(world, tid, Transform3D)!;
-              camera.position.set(
-                t.px,
-                t.py + follow.height,
-                t.pz + follow.distance,
-              );
-              camera.lookAt(t.px, t.py, t.pz);
-              break;
-            }
+        if (follow.targetName) {
+          const tid = queryName(world, follow.targetName);
+          if (tid !== undefined && hasComponent(world, tid, Transform3D)) {
+            const t = getComponent(world, tid, Transform3D)!;
+            camera.position.set(t.px, t.py + follow.height, t.pz + follow.distance);
+            camera.lookAt(t.px, t.py, t.pz);
           }
         }
       }
@@ -267,17 +276,32 @@ function makeVgxTags() {
   return {
     transform(w: World, eid: EntityId, attrs: Record<string, string>): void {
       const [px, py, pz] = parsePos(attrs['pos']);
-      addComponent(w, eid, Transform3D, {
-        px,
-        py,
-        pz,
-        rx: attrs['rx'] !== undefined ? Number(attrs['rx']) : 0,
-        ry: attrs['ry'] !== undefined ? Number(attrs['ry']) : 0,
-        rz: attrs['rz'] !== undefined ? Number(attrs['rz']) : 0,
-        sx: attrs['sx'] !== undefined ? Number(attrs['sx']) : 1,
-        sy: attrs['sy'] !== undefined ? Number(attrs['sy']) : 1,
-        sz: attrs['sz'] !== undefined ? Number(attrs['sz']) : 1,
-      });
+
+      // Support both shorthand "rot" vector and individual rx/ry/rz attributes.
+      // "rot" is parsed as "x y z" in degrees and takes precedence over rx/ry/rz
+      // if both are present.
+      let rx = 0, ry = 0, rz = 0;
+      if (attrs['rot'] !== undefined) {
+        const [a, b, c] = parsePos(attrs['rot']);
+        rx = a; ry = b; rz = c;
+      } else {
+        rx = attrs['rx'] !== undefined ? Number(attrs['rx']) : 0;
+        ry = attrs['ry'] !== undefined ? Number(attrs['ry']) : 0;
+        rz = attrs['rz'] !== undefined ? Number(attrs['rz']) : 0;
+      }
+
+      // Support both shorthand "scale" vector and individual sx/sy/sz attributes.
+      let sx = 1, sy = 1, sz = 1;
+      if (attrs['scale'] !== undefined) {
+        const [a, b, c] = parsePos(attrs['scale']);
+        sx = a; sy = b; sz = c;
+      } else {
+        sx = attrs['sx'] !== undefined ? Number(attrs['sx']) : 1;
+        sy = attrs['sy'] !== undefined ? Number(attrs['sy']) : 1;
+        sz = attrs['sz'] !== undefined ? Number(attrs['sz']) : 1;
+      }
+
+      addComponent(w, eid, Transform3D, { px, py, pz, rx, ry, rz, sx, sy, sz });
     },
 
     mesh(w: World, eid: EntityId, attrs: Record<string, string>): void {
@@ -382,6 +406,24 @@ export function ThreeRendererPlugin(config?: ThreeRendererConfig): VibePlugin {
 
     systems(_world: World) {
       return [ThreeRenderSystem(state)];
+    },
+
+    teardown(_world: World): void {
+      // Dispose all GPU resources to avoid memory leaks
+      for (const obj of state.meshMap.values()) {
+        if (obj instanceof THREE.Mesh) {
+          obj.geometry.dispose();
+          if (Array.isArray(obj.material)) {
+            obj.material.forEach((m) => (m as THREE.Material).dispose());
+          } else {
+            (obj.material as THREE.Material).dispose();
+          }
+        }
+      }
+      state.meshMap.clear();
+      state.lightMap.clear();
+      state.scene.clear();
+      state.renderer.dispose();
     },
 
     vgxTags() {

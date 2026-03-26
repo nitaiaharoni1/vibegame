@@ -13,7 +13,7 @@ export const Transform3D = defineComponent('Transform3D', {
 });
 
 export const Mesh3D = defineComponent('Mesh3D', {
-  shape: Type.Enum(['box', 'sphere', 'capsule', 'cylinder', 'plane', 'cone']),
+  shape: Type.Enum(['box', 'sphere', 'capsule', 'cylinder', 'plane', 'cone', 'torus']),
   color: Type.String({ default: '#ffffff' }),
   size: Type.String({ default: '1' }),
   wireframe: Type.Boolean({ default: false }),

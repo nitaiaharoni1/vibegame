@@ -165,6 +165,10 @@ export function resumeWorld(world: World): void {
 
 export function stepWorld(world: World, delta = 1 / 60): void {
   for (const system of world.systems) {
-    system.execute(world, delta);
+    try {
+      system.execute(world, delta);
+    } catch (err) {
+      console.error(`[vigame] System "${system.name}" threw an error:`, err);
+    }
   }
 }
