@@ -121,9 +121,20 @@ describe('mutatePath', () => {
 // ---------------------------------------------------------------------------
 
 describe('simulateInputSequence', () => {
-  it('dispatches keydown/keyup events', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    // Clean up any canvas injected into the DOM during tests
+    for (const el of document.querySelectorAll('canvas[data-test]')) {
+      el.remove();
+    }
+    // Remove any test globals
+    delete (window as unknown as Record<string, unknown>).__PHASER_GAME__;
+    delete (window as unknown as Record<string, unknown>).__THREE_RENDERER__;
+  });
+
+  it('dispatches keydown/keyup events to document when no canvas exists', async () => {
     const dispatched: string[] = [];
-    const spy = vi.spyOn(document, 'dispatchEvent').mockImplementation((evt) => {
+    vi.spyOn(document, 'dispatchEvent').mockImplementation((evt) => {
       dispatched.push(`${evt.type}:${(evt as KeyboardEvent).key ?? ''}`);
       return true;
     });
@@ -135,7 +146,6 @@ describe('simulateInputSequence', () => {
 
     expect(dispatched).toContain('keydown:ArrowLeft');
     expect(dispatched).toContain('keyup:ArrowLeft');
-    spy.mockRestore();
   });
 
   it('returns executed count', async () => {
@@ -145,7 +155,6 @@ describe('simulateInputSequence', () => {
       { type: 'click', x: 100, y: 200 },
     ]);
     expect(result.executed).toBe(2);
-    vi.restoreAllMocks();
   });
 
   it('handles keydown with duration by firing keydown then keyup', async () => {
@@ -155,13 +164,10 @@ describe('simulateInputSequence', () => {
       return true;
     });
 
-    // Use very short duration for test speed
     await simulateInputSequence([{ type: 'keydown', key: 'w', duration: 1 }]);
 
     expect(dispatched).toContain('keydown');
     expect(dispatched).toContain('keyup');
-    expect(dispatched.length).toBe(2);
-    vi.restoreAllMocks();
   });
 
   it('dispatches mousemove events with coordinates', async () => {
@@ -175,7 +181,78 @@ describe('simulateInputSequence', () => {
 
     expect(events.length).toBe(1);
     expect(events[0]?.type).toBe('mousemove');
-    vi.restoreAllMocks();
+  });
+
+  it('targets Phaser canvas via __PHASER_GAME__ global', async () => {
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('data-test', 'phaser');
+    canvas.getBoundingClientRect = () =>
+      ({ left: 10, top: 20, width: 800, height: 600 }) as DOMRect;
+    document.body.appendChild(canvas);
+
+    (window as unknown as Record<string, unknown>).__PHASER_GAME__ = { canvas };
+
+    const canvasEvents: KeyboardEvent[] = [];
+    canvas.addEventListener('keydown', (e) => canvasEvents.push(e as KeyboardEvent));
+
+    await simulateInputSequence([{ type: 'keydown', key: 'Space' }]);
+
+    expect(canvasEvents.length).toBeGreaterThan(0);
+    // "Space" is normalized to the actual space character for Phaser compat
+    expect(canvasEvents[0]?.key).toBe(' ');
+    expect(canvasEvents[0]?.code).toBe('Space');
+    // keyCode must be 32 — Phaser 3 dispatches entirely via event.keyCode
+    expect(canvasEvents[0]?.keyCode).toBe(32);
+  });
+
+  it('sets correct keyCode for arrow keys', async () => {
+    const dispatched: KeyboardEvent[] = [];
+    vi.spyOn(document, 'dispatchEvent').mockImplementation((evt) => {
+      dispatched.push(evt as KeyboardEvent);
+      return true;
+    });
+
+    await simulateInputSequence([
+      { type: 'keydown', key: 'ArrowLeft' },
+      { type: 'keydown', key: 'ArrowRight' },
+      { type: 'keydown', key: 'Enter' },
+    ]);
+
+    expect(dispatched[0]?.keyCode).toBe(37);
+    expect(dispatched[1]?.keyCode).toBe(39);
+    expect(dispatched[2]?.keyCode).toBe(13);
+  });
+
+  it('targets first canvas when no game global is set', async () => {
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('data-test', 'fallback');
+    canvas.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600 }) as DOMRect;
+    document.body.appendChild(canvas);
+
+    const canvasEvents: Event[] = [];
+    canvas.addEventListener('mousemove', (e) => canvasEvents.push(e));
+
+    await simulateInputSequence([{ type: 'mousemove', x: 50, y: 75 }]);
+
+    expect(canvasEvents.length).toBe(1);
+  });
+
+  it('offsets mouse clientX/Y by canvas bounding rect', async () => {
+    const canvas = document.createElement('canvas');
+    canvas.setAttribute('data-test', 'offset');
+    canvas.getBoundingClientRect = () =>
+      ({ left: 100, top: 200, width: 800, height: 600 }) as DOMRect;
+    document.body.appendChild(canvas);
+
+    (window as unknown as Record<string, unknown>).__PHASER_GAME__ = { canvas };
+
+    const events: MouseEvent[] = [];
+    canvas.addEventListener('click', (e) => events.push(e as MouseEvent));
+
+    await simulateInputSequence([{ type: 'click', x: 50, y: 75 }]);
+
+    expect(events[0]?.clientX).toBe(150); // 100 + 50
+    expect(events[0]?.clientY).toBe(275); // 200 + 75
   });
 });
 

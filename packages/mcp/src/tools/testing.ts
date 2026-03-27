@@ -3,6 +3,8 @@ import {
   type FuzzArgsWire,
   type FuzzResultWire,
   omitUndefined,
+  type RunScriptArgs,
+  type RunScriptResult,
 } from '@vigame/protocol';
 import type { BridgeServer } from '../bridge-server.js';
 import { INPUT_EVENT_ITEM_SCHEMA } from './schema/input-event.js';
@@ -108,6 +110,33 @@ export async function run_playtest(
 
   const passed = results.every((r) => r.passed);
   return { name, passed, screenshots, results };
+}
+
+/**
+ * Run a multi-step playtest script entirely on the bridge side.
+ * The AI sends one call; the bridge runs inputs, waits, screenshots,
+ * assertions, and evals — then returns the full report.
+ */
+export async function run_script(
+  bridge: BridgeServer,
+  args: RunScriptArgs,
+): Promise<RunScriptResult> {
+  // Estimate a generous timeout: sum of all wait/timeout steps + 30s buffer
+  let estimatedMs = 30_000;
+  for (const step of args.steps) {
+    if (step.action === 'wait') estimatedMs += step.ms;
+    if (step.action === 'wait_for') estimatedMs += step.timeout_ms;
+    if (step.action === 'input') {
+      for (const evt of step.sequence) {
+        if (evt.duration) estimatedMs += evt.duration;
+      }
+    }
+  }
+  return (await bridge.send(
+    'run_script',
+    args as unknown as Record<string, unknown>,
+    estimatedMs,
+  )) as RunScriptResult;
 }
 
 export type FuzzResult = FuzzResultWire;
@@ -235,6 +264,72 @@ export const testingToolDefs = [
           items: { type: 'string' },
           description:
             'Property paths to monitor for NaN / out-of-bounds values (e.g. ["player.position"])',
+        },
+      },
+    },
+  },
+  {
+    name: 'run_script',
+    description:
+      'Run a multi-step playtest script autonomously. Define a sequence of inputs, waits, screenshots, assertions, eval, and inspections — the bridge executes them all and returns the full report with labeled screenshots and assertion results. No AI round-trips needed between steps.',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['steps'],
+      properties: {
+        steps: {
+          type: 'array',
+          description: 'Ordered list of steps to execute',
+          items: {
+            type: 'object',
+            required: ['action'],
+            properties: {
+              action: {
+                type: 'string',
+                description: 'Step type: input, wait, screenshot, wait_for, assert, eval, inspect',
+              },
+              sequence: {
+                type: 'array',
+                description: '(input) Array of input events',
+                items: INPUT_EVENT_ITEM_SCHEMA,
+              },
+              ms: {
+                type: 'number',
+                description: '(wait) Milliseconds to wait',
+                minimum: 0,
+              },
+              label: {
+                type: 'string',
+                description: '(screenshot/wait_for/inspect) Label for this capture',
+              },
+              condition: {
+                type: 'string',
+                description: '(wait_for/assert) JS expression',
+              },
+              timeout_ms: {
+                type: 'number',
+                description: '(wait_for) Max wait time in ms',
+                minimum: 100,
+                maximum: 120000,
+              },
+              message: {
+                type: 'string',
+                description: '(assert) Human-readable assertion message',
+              },
+              code: {
+                type: 'string',
+                description: '(eval) JS code to execute',
+              },
+              paths: {
+                type: 'array',
+                items: { type: 'string' },
+                description: '(inspect) Property paths to read',
+              },
+            },
+          },
+        },
+        bail_on_failure: {
+          type: 'boolean',
+          description: 'Stop executing remaining steps when an assertion fails (default: false)',
         },
       },
     },

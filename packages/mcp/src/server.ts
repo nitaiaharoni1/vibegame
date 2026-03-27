@@ -29,6 +29,7 @@ import {
   fuzz_test,
   record,
   run_playtest,
+  run_script,
   simulate_input,
   testingToolDefs,
 } from './tools/testing.js';
@@ -341,6 +342,36 @@ export async function startServer(): Promise<void> {
                 parsed?.base64 ?? result.first_issue_screenshot.replace(/^data:[^;]+;base64,/, ''),
               mimeType: parsed?.mimeType ?? mimeFromDataUrl(result.first_issue_screenshot),
             });
+          }
+          return { content };
+        }
+
+        // --- Script runner ---
+        case 'run_script': {
+          const result = await run_script(bridge, a as unknown as Parameters<typeof run_script>[1]);
+          const content: Array<
+            { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string }
+          > = [
+            textBlockJson({
+              completed: result.completed,
+              steps_executed: result.steps_executed,
+              total_steps: result.total_steps,
+              elapsed_ms: result.elapsed_ms,
+              assertions: result.assertions,
+              inspections: result.inspections,
+              errors: result.errors,
+            }),
+          ];
+          for (const ss of result.screenshots) {
+            const parsed = parseDataUrl(ss.dataUrl);
+            if (parsed) {
+              content.push(textBlock(`[${ss.label}] step ${ss.step_index}`));
+              content.push({
+                type: 'image' as const,
+                data: parsed.base64,
+                mimeType: parsed.mimeType,
+              });
+            }
           }
           return { content };
         }

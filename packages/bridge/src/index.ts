@@ -13,6 +13,7 @@ import {
   type ScreenshotOptions,
   type ScreenshotResult,
 } from './screenshot.js';
+import { type RunScriptArgs, runScript } from './script-runner.js';
 import { delay, recordState } from './state-recorder.js';
 import { type TrackArgs, trackObjects } from './tracker.js';
 import { type WatchForArgs, watchFor } from './watcher.js';
@@ -353,6 +354,16 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
       case 'fuzz': {
         tryAutoRegister();
         return fuzzTest(args as unknown as FuzzArgs, canvas, registeredRoots, errorInterceptor);
+      }
+
+      case 'run_script': {
+        tryAutoRegister();
+        return runScript(
+          args as unknown as RunScriptArgs,
+          canvas,
+          registeredRoots,
+          errorInterceptor,
+        );
       }
 
       default:

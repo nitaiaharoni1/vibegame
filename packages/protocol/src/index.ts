@@ -22,6 +22,14 @@ export {
   resolveControlPortFromEnv,
 } from './ports.js';
 export type {
+  RunScriptArgs,
+  RunScriptResult,
+  ScriptAssertionResult,
+  ScriptInspection,
+  ScriptScreenshot,
+  ScriptStep,
+} from './script.js';
+export type {
   FuzzArgsWire,
   FuzzIssueTypeWire,
   FuzzIssueWire,
