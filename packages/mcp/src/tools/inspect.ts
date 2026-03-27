@@ -56,6 +56,17 @@ export async function mutate(
 }
 
 /**
+ * Mutate multiple property paths in the running game in one call.
+ * All mutations are sent concurrently. Returns old and new values for each.
+ */
+export async function mutate_many(
+  bridge: BridgeServer,
+  args: { mutations: Array<{ path: string; value: unknown }> },
+): Promise<MutateResult[]> {
+  return Promise.all(args.mutations.map((m) => mutate(bridge, { path: m.path, value: m.value })));
+}
+
+/**
  * Evaluate arbitrary JavaScript in the context of the running game.
  * The code has access to the game's global scope (e.g. `scene`, `camera`, `game`).
  * Returns the result or an error message.
@@ -130,6 +141,29 @@ export const inspectToolDefs = [
         },
         value: {
           description: 'The new value to set (any JSON-serializable value)',
+        },
+      },
+    },
+  },
+  {
+    name: 'mutate_many',
+    description:
+      'Set multiple property paths in the running game in one call. All mutations are applied concurrently. Use instead of multiple mutate calls to set game state in bulk (e.g. reset player position, health, score at once).',
+    inputSchema: {
+      type: 'object' as const,
+      required: ['mutations'],
+      properties: {
+        mutations: {
+          type: 'array',
+          description: 'Array of { path, value } pairs to set',
+          items: {
+            type: 'object',
+            required: ['path', 'value'],
+            properties: {
+              path: { type: 'string', description: 'Dot/bracket notation path to the property' },
+              value: { description: 'The new value to set (any JSON-serializable value)' },
+            },
+          },
         },
       },
     },

@@ -21,6 +21,7 @@ import {
   inspect,
   inspectToolDefs,
   mutate,
+  mutate_many,
   scene_graph,
 } from './tools/inspect.js';
 import { perf_snapshot, perfToolDefs } from './tools/perf.js';
@@ -131,6 +132,12 @@ export async function startServer(): Promise<void> {
           const result = await mutate(bridge, {
             path: a.path as string,
             value: a.value,
+          });
+          return mcpJsonResult(result);
+        }
+        case 'mutate_many': {
+          const result = await mutate_many(bridge, {
+            mutations: a.mutations as Array<{ path: string; value: unknown }>,
           });
           return mcpJsonResult(result);
         }
