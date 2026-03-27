@@ -1,11 +1,19 @@
-import { DEFAULT_BRIDGE_PORT } from '@vigame/protocol';
+import {
+  DEFAULT_BRIDGE_PORT,
+  type DiscoverControlsArgs,
+  type ObserveArgs,
+  type RunPolicyArgs,
+} from '@vigame/protocol';
 import { type ActAndObserveArgs, actAndObserve } from './compound.js';
 import { captureDebugScreenshot } from './debug-overlay.js';
 import { createErrorInterceptor } from './error-interceptor.js';
 import { type FuzzArgs, fuzzTest } from './fuzzer.js';
 import { frameDiff } from './image-diff.js';
+import { discoverControls } from './input-mapper.js';
 import { type InputEvent, simulateInputSequence } from './input-simulator.js';
 import { inspectPath, mutatePath } from './mutator.js';
+import { observeGame } from './observer.js';
+import { runPolicy } from './policy-runner.js';
 import { inspectSceneGraph } from './scene-inspector.js';
 import {
   captureScreenshot,
@@ -364,6 +372,21 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
           registeredRoots,
           errorInterceptor,
         );
+      }
+
+      case 'run_policy': {
+        tryAutoRegister();
+        return runPolicy(args as unknown as RunPolicyArgs, registeredRoots, errorInterceptor);
+      }
+
+      case 'observe': {
+        tryAutoRegister();
+        return observeGame(args as unknown as ObserveArgs, registeredRoots);
+      }
+
+      case 'discover_controls': {
+        tryAutoRegister();
+        return discoverControls(args as unknown as DiscoverControlsArgs, registeredRoots);
       }
 
       default:

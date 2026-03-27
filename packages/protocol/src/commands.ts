@@ -18,6 +18,9 @@ export const BRIDGE_COMMANDS = [
   'track',
   'watch_for',
   'fuzz',
+  'run_policy',
+  'observe',
+  'discover_controls',
 ] as const;
 
 export type BridgeCommandName = (typeof BRIDGE_COMMANDS)[number];

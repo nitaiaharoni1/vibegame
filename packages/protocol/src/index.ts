@@ -15,6 +15,18 @@ export {
   parseDataUrl,
 } from './data-url.js';
 export { omitUndefined } from './object.js';
+export type {
+  ControlMapping,
+  DiscoverControlsArgs,
+  DiscoverControlsResult,
+  EpisodeLogEntry,
+  ObserveArgs,
+  ObservedEntity,
+  ObserveResult,
+  RunPolicyArgs,
+  RunPolicyResult,
+  SpatialRelation,
+} from './policy.js';
 export {
   controlPortFromBridgePort,
   DEFAULT_BRIDGE_PORT,

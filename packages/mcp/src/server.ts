@@ -13,6 +13,7 @@ import {
 import { BridgeServer } from './bridge-server.js';
 import { handleCliControlPost } from './cli-control-handler.js';
 import { mcpJsonResult, mcpTextResult, textBlock, textBlockJson } from './mcp-content.js';
+import { agentToolDefs, discover_controls, observe, run_policy } from './tools/agent.js';
 import { asset_manifest, assetToolDefs, placeholder_asset } from './tools/assets.js';
 import { act_and_observe, compoundToolDefs, watch_for } from './tools/compound.js';
 import {
@@ -47,6 +48,7 @@ const ALL_TOOL_DEFS = [
   ...perfToolDefs,
   ...compoundToolDefs,
   ...trackingToolDefs,
+  ...agentToolDefs,
 ];
 
 type ToolArgs = Record<string, unknown>;
@@ -304,6 +306,23 @@ export async function startServer(): Promise<void> {
         // --- Tracking ---
         case 'track': {
           const result = await track(bridge, a as unknown as Parameters<typeof track>[1]);
+          return mcpJsonResult(result);
+        }
+
+        // --- Agent tools ---
+        case 'run_policy': {
+          const result = await run_policy(bridge, a as unknown as Parameters<typeof run_policy>[1]);
+          return mcpJsonResult(result);
+        }
+        case 'observe': {
+          const result = await observe(bridge, a as unknown as Parameters<typeof observe>[1]);
+          return mcpJsonResult(result);
+        }
+        case 'discover_controls': {
+          const result = await discover_controls(
+            bridge,
+            a as unknown as Parameters<typeof discover_controls>[1],
+          );
           return mcpJsonResult(result);
         }
 
