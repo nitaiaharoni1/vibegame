@@ -117,7 +117,7 @@ export const visualToolDefs = [
   {
     name: 'screenshot',
     description:
-      'Take a screenshot of the running game. By default captures only the <canvas> element. Use mode "viewport" to capture the full page including DOM overlays (HTML UI on top of the canvas). Use maxWidth/maxHeight to downscale for smaller context usage.',
+      'Take a screenshot of the running game. By default captures only the <canvas> element. Use mode "viewport" to capture the full page including DOM overlays (HTML UI on top of the canvas). Use maxWidth/maxHeight to downscale for smaller context usage. For structured game state without visual overhead, prefer `observe`. Use `screenshot` to understand visual layout or debug rendering issues.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -193,7 +193,7 @@ export const visualToolDefs = [
   {
     name: 'debug_screenshot',
     description:
-      'Take an annotated screenshot with debug overlays drawn on top of the game view: labeled bounding boxes around scene objects, optional coordinate grid, and property value labels. Combines screenshot + scene_graph understanding into one image.',
+      'Take an annotated screenshot with debug overlays drawn on top of the game view: labeled bounding boxes around scene objects, optional coordinate grid, and property value labels. Combines screenshot + scene_graph understanding into one image. For structured data without visual overhead, prefer `observe(auto_discover:true)`.',
     inputSchema: {
       type: 'object' as const,
       properties: {

@@ -100,7 +100,7 @@ export const inspectToolDefs = [
   {
     name: 'scene_graph',
     description:
-      "Retrieve the full scene graph from the running game as formatted JSON. Use this to understand the game's object hierarchy.",
+      "Retrieve the full scene graph from the running game as formatted JSON. Use this to understand the game's object hierarchy. Returns raw engine hierarchy. For semantic game state with roles and properties, prefer `observe(auto_discover:true)`.",
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -115,7 +115,7 @@ export const inspectToolDefs = [
   {
     name: 'inspect',
     description:
-      'Inspect a specific property path in the running game (e.g. "scene.children[0].position.x"). Returns the value and its JavaScript type.',
+      'Inspect a specific property path in the running game (e.g. "scene.children[0].position.x"). Returns the value and its JavaScript type. For reading multiple paths at once, prefer `observe(paths:[...])` which is faster and more structured.',
     inputSchema: {
       type: 'object' as const,
       required: ['path'],

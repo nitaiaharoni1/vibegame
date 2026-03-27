@@ -1,7 +1,12 @@
 import { createServer } from 'node:http';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  GetPromptRequestSchema,
+  ListPromptsRequestSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import {
   mimeFromDataUrl,
   omitUndefined,
@@ -53,12 +58,104 @@ const ALL_TOOL_DEFS = [
 
 type ToolArgs = Record<string, unknown>;
 
+// ---------------------------------------------------------------------------
+// Server instructions — injected into the AI's system prompt on connection.
+// Explains the tool hierarchy and recommended workflow.
+// ---------------------------------------------------------------------------
+const VIGAME_INSTRUCTIONS = `
+vigame MCP — AI toolkit for live Three.js / Phaser game control.
+
+RECOMMENDED WORKFLOW
+1. observe(auto_discover:true, spatial:true)  — understand entities, positions, fps
+2. screenshot()                               — understand visual layout (once)
+3. discover_controls()                        — learn what keys do (cached after first run)
+4. run_policy(...)                            — play autonomously at game speed; iterate
+
+TOOL LAYERS (use the highest layer that fits)
+• Autonomous  : run_policy, observe, discover_controls          ← prefer these
+• Scripted    : run_script, act_and_observe, fuzz_test, watch_for
+• Direct      : mutate, mutate_many, eval_js, simulate_input
+• Observation : track, record, watch, get_errors, perf_snapshot
+• Discovery   : screenshot, scene_graph, inspect, debug_screenshot
+
+KEY RULES
+• observe > screenshot for state data — faster, structured, no pixel interpretation
+• run_policy > simulate_input for gameplay — runs at 60fps without round-trips
+• discover_controls once per session — results are cached
+• mutate/eval_js to reset state before a policy episode
+• get_errors after any crash or unexpected behaviour
+• project_context at session start if .vigame/ context exists
+
+run_policy QUICK EXAMPLE
+  state_spec: ["player.position.x","player.health","score"]
+  actions: {"right":["ArrowRight"],"jump":["Space"],"idle":[]}
+  policy: "(s) => s['player.health'] < 20 ? 'jump' : 'right'"
+  reward: "(s,p) => (s.score - p.score) - (p['player.health'] - s['player.health']) * 5"
+  duration_ms: 10000
+`.trim();
+
+// ---------------------------------------------------------------------------
+// Prompts — reusable workflow guides the AI (or user) can invoke explicitly.
+// ---------------------------------------------------------------------------
+const VIGAME_PROMPTS = [
+  {
+    name: 'vigame-workflow',
+    description: 'Step-by-step guide for exploring and playing a game with vigame tools.',
+    arguments: [
+      {
+        name: 'goal',
+        description:
+          'What you want to achieve (e.g. "maximise score", "find bugs", "test controls")',
+        required: false,
+      },
+    ],
+  },
+] as const;
+
+function getWorkflowPrompt(goal?: string): string {
+  const goalLine = goal ? `\nGoal: ${goal}\n` : '';
+  return `You are using the vigame MCP toolkit to interact with a live browser game.${goalLine}
+
+## Phase 1 — Understand the game (do this first)
+1. Call \`observe(auto_discover:true, spatial:true)\` to see all entities, positions, and distances.
+2. Call \`screenshot()\` once to understand the visual layout.
+3. Call \`discover_controls()\` to learn what keyboard inputs do. Results are cached.
+4. Call \`project_context()\` if a .vigame/ directory exists for design notes.
+
+## Phase 2 — Design a policy
+Based on what you learned, define:
+- \`state_spec\`: the paths you need each frame (e.g. \`["player.position.x", "player.health", "score"]\`)
+- \`actions\`: named actions mapped to keys (e.g. \`{"move_right":["ArrowRight"],"jump":["Space"],"idle":[]}\`)
+- \`policy\`: a JS expression \`(state) => actionName\` that picks an action based on current state
+- \`reward\`: a JS expression \`(state, prev) => number\` that scores each frame
+
+## Phase 3 — Run and iterate
+1. Optionally reset game state with \`mutate\` or \`eval_js\` before the episode.
+2. Call \`run_policy\` with your design. Start with \`duration_ms: 10000\`.
+3. Review \`total_reward\`, \`action_counts\`, \`reward_curve\`, and \`episode_log\`.
+4. Refine policy logic and reward weights. Repeat from step 1.
+
+## Phase 4 — Verify and test
+- Use \`run_script\` for deterministic assertion-based tests.
+- Use \`fuzz_test\` to find crashes and edge cases.
+- Use \`get_errors\` after any unexpected behaviour.
+- Use \`perf_snapshot\` to check FPS impact.
+
+## Tips
+- If \`observe\` returns no entities, check that the game called \`bridge.register("player", obj)\`.
+- If \`run_policy\` shows no reward change, verify \`state_spec\` paths are correct with \`inspect\`.
+- If keys have no effect, check \`discover_controls\` results and ensure the game canvas has focus.`;
+}
+
 export async function startServer(): Promise<void> {
   const bridge = new BridgeServer(resolveBridgePortFromEnv());
 
   const server = new Server(
     { name: 'vigame-mcp', version: '0.1.0' },
-    { capabilities: { tools: {} } },
+    {
+      capabilities: { tools: {}, prompts: {} },
+      instructions: VIGAME_INSTRUCTIONS,
+    },
   );
 
   // -------------------------------------------------------------------------
@@ -71,6 +168,31 @@ export async function startServer(): Promise<void> {
         description: t.description,
         inputSchema: t.inputSchema,
       })),
+    };
+  });
+
+  // -------------------------------------------------------------------------
+  // List prompts
+  // -------------------------------------------------------------------------
+  server.setRequestHandler(ListPromptsRequestSchema, () => {
+    return { prompts: VIGAME_PROMPTS.map((p) => ({ ...p, arguments: [...p.arguments] })) };
+  });
+
+  // Get prompt
+  server.setRequestHandler(GetPromptRequestSchema, (request) => {
+    const { name, arguments: promptArgs } = request.params;
+    if (name !== 'vigame-workflow') {
+      throw new Error(`Unknown prompt: ${name}`);
+    }
+    const goal = typeof promptArgs?.goal === 'string' ? promptArgs.goal : undefined;
+    return {
+      description: 'vigame step-by-step workflow guide',
+      messages: [
+        {
+          role: 'user' as const,
+          content: { type: 'text' as const, text: getWorkflowPrompt(goal) },
+        },
+      ],
     };
   });
 

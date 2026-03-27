@@ -61,7 +61,7 @@ export const agentToolDefs = [
   {
     name: 'run_policy',
     description:
-      'Run an autonomous game-playing episode. The AI provides a JavaScript policy function and reward function as strings; the bridge executes them at game speed (up to 60fps) for the specified duration without any MCP round-trips. The policy function receives the current game state and returns an action name (e.g. "jump", "move_right"). Actions are mapped to keys to hold. Returns episode results: total reward, action distribution, sampled state log, events, and errors. Use this to autonomously play and test the game at full speed.',
+      '**Primary gameplay tool.** Run an autonomous game-playing episode. The AI provides a JavaScript policy function and reward function as strings; the bridge executes them at game speed (up to 60fps) for the specified duration without any MCP round-trips. The policy function receives the current game state and returns an action name (e.g. "jump", "move_right"). Actions are mapped to keys to hold. Returns episode results: total reward, action distribution, sampled state log, events, and errors. Use this to autonomously play and test the game at full speed.',
     inputSchema: {
       type: 'object' as const,
       required: ['policy', 'reward', 'state_spec', 'actions', 'duration_ms'],
@@ -118,7 +118,7 @@ export const agentToolDefs = [
   {
     name: 'observe',
     description:
-      'Get current game state as structured data without screenshots. Much faster than screenshot + inspect. Returns entity positions/properties, registered root values, spatial distances, and FPS. Use auto_discover to automatically find all game entities. Use paths to read specific property values.',
+      '**Start here.** Get current game state as structured data without screenshots. Much faster than screenshot + inspect. Returns entity positions/properties, registered root values, spatial distances, and FPS. Use auto_discover to automatically find all game entities. Use paths to read specific property values.',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -144,7 +144,7 @@ export const agentToolDefs = [
   {
     name: 'discover_controls',
     description:
-      'Automatically discover what each keyboard input does by systematically testing keys and observing state changes. Tests ArrowUp/Down/Left/Right, WASD, Space, and Enter. Returns a control map (e.g. "ArrowRight: player.position.x increases by ~5"). Call this once at the start of a session. Results are cached; pass rescan:true to re-test.',
+      '**Call once at session start** before using `run_policy`. Automatically discover what each keyboard input does by systematically testing keys and observing state changes. Tests ArrowUp/Down/Left/Right, WASD, Space, and Enter. Returns a control map (e.g. "ArrowRight: player.position.x increases by ~5"). Results are cached; pass rescan:true to re-test.',
     inputSchema: {
       type: 'object' as const,
       properties: {

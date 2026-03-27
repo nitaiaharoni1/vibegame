@@ -164,7 +164,7 @@ export const testingToolDefs = [
   {
     name: 'simulate_input',
     description:
-      'Simulate a sequence of user input events (keyboard, mouse) in the running game. Useful for automated testing or scripted gameplay.',
+      'Simulate a sequence of user input events (keyboard, mouse) in the running game. Useful for automated testing or scripted gameplay. For sustained game-playing over multiple frames, prefer `run_policy` which executes autonomously at game speed without MCP round-trips.',
     inputSchema: {
       type: 'object' as const,
       required: ['sequence'],
@@ -271,7 +271,7 @@ export const testingToolDefs = [
   {
     name: 'run_script',
     description:
-      'Run a multi-step playtest script autonomously. Define a sequence of inputs, waits, screenshots, assertions, eval, and inspections — the bridge executes them all and returns the full report with labeled screenshots and assertion results. No AI round-trips needed between steps.',
+      'Run a multi-step playtest script autonomously. Define a sequence of inputs, waits, screenshots, assertions, eval, and inspections — the bridge executes them all and returns the full report with labeled screenshots and assertion results. No AI round-trips needed between steps. For adaptive gameplay that reacts to game state each frame, prefer `run_policy`.',
     inputSchema: {
       type: 'object' as const,
       required: ['steps'],
