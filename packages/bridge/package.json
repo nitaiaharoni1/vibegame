@@ -18,7 +18,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@vigame/protocol": "workspace:*"
+    "@vigame/protocol": "workspace:*",
+    "html2canvas": "^1.4.1"
   },
   "devDependencies": {
     "jsdom": "^26.0.0",

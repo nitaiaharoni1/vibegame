@@ -87,6 +87,7 @@ export async function startServer(): Promise<void> {
               quality: a.quality as number | undefined,
               maxWidth: a.maxWidth as number | undefined,
               maxHeight: a.maxHeight as number | undefined,
+              mode: a.mode as string | undefined,
             }),
           );
           return { content: [img] };
@@ -99,6 +100,7 @@ export async function startServer(): Promise<void> {
               diffThreshold: a.diffThreshold as number | undefined,
               maxWidth: a.maxWidth as number | undefined,
               maxHeight: a.maxHeight as number | undefined,
+              mode: a.mode as string | undefined,
             }),
           });
           return {
@@ -310,6 +312,7 @@ export async function startServer(): Promise<void> {
               boundingBoxes: a.boundingBoxes as boolean | undefined,
               grid: a.grid as boolean | undefined,
               quality: a.quality as number | undefined,
+              mode: a.mode as string | undefined,
             }),
             ...(Array.isArray(a.properties) ? { properties: a.properties as string[] } : {}),
           });

@@ -1,7 +1,7 @@
 import type { SceneNode } from './scene-inspector.js';
 import { inspectSceneGraph } from './scene-inspector.js';
 import type { ScreenshotResult } from './screenshot.js';
-import { captureScreenshot } from './screenshot.js';
+import { captureScreenshot, captureViewport } from './screenshot.js';
 
 export interface OverlayOptions {
   boundingBoxes?: boolean;
@@ -65,27 +65,28 @@ function projectToScreen(
   };
 }
 
-export function captureDebugScreenshot(
+export async function captureDebugScreenshot(
   canvas: HTMLCanvasElement | null,
   options: OverlayOptions,
   registeredRoots: Map<string, unknown>,
   quality?: number,
-): ScreenshotResult {
-  const result = captureScreenshot(canvas, quality ?? 0.9);
+  mode?: 'viewport',
+): Promise<ScreenshotResult> {
+  const baseResult =
+    mode === 'viewport'
+      ? await captureViewport(canvas, { quality: quality ?? 0.9 })
+      : captureScreenshot(canvas, quality ?? 0.9);
 
   try {
     const offscreen = document.createElement('canvas');
-    offscreen.width = result.width;
-    offscreen.height = result.height;
+    offscreen.width = baseResult.width;
+    offscreen.height = baseResult.height;
     const ctx = offscreen.getContext('2d');
-    if (!ctx) return result;
+    if (!ctx) return baseResult;
 
-    const gameCanvas = canvas ?? document.querySelector('canvas');
-    if (gameCanvas) {
-      ctx.drawImage(gameCanvas, 0, 0);
-    } else {
-      return result;
-    }
+    // Draw the base image (viewport or canvas-only) onto the offscreen canvas
+    const img = await loadImage(baseResult.dataUrl);
+    ctx.drawImage(img, 0, 0, offscreen.width, offscreen.height);
 
     const win = typeof window !== 'undefined' ? (window as unknown as Record<string, unknown>) : {};
 
@@ -193,6 +194,15 @@ export function captureDebugScreenshot(
     const composited = offscreen.toDataURL('image/png');
     return { dataUrl: composited, width: offscreen.width, height: offscreen.height };
   } catch {
-    return result;
+    return baseResult;
   }
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
 }

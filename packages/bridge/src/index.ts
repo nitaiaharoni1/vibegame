@@ -7,7 +7,12 @@ import { frameDiff } from './image-diff.js';
 import { type InputEvent, simulateInputSequence } from './input-simulator.js';
 import { inspectPath, mutatePath } from './mutator.js';
 import { inspectSceneGraph } from './scene-inspector.js';
-import { captureScreenshot, type ScreenshotOptions, type ScreenshotResult } from './screenshot.js';
+import {
+  captureScreenshot,
+  captureViewport,
+  type ScreenshotOptions,
+  type ScreenshotResult,
+} from './screenshot.js';
 import { delay, recordState } from './state-recorder.js';
 import { type TrackArgs, trackObjects } from './tracker.js';
 import { type WatchForArgs, watchFor } from './watcher.js';
@@ -154,10 +159,13 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
   async function executeCommand(command: string, args: Record<string, unknown>): Promise<unknown> {
     switch (command) {
       case 'screenshot': {
-        const ssOpts: import('./screenshot.js').ScreenshotOptions = {};
+        const ssOpts: ScreenshotOptions = {};
         if (typeof args.quality === 'number') ssOpts.quality = args.quality;
         if (typeof args.maxWidth === 'number') ssOpts.maxWidth = args.maxWidth;
         if (typeof args.maxHeight === 'number') ssOpts.maxHeight = args.maxHeight;
+        if (args.mode === 'viewport') {
+          return captureViewport(canvas, ssOpts);
+        }
         return captureScreenshot(canvas, ssOpts);
       }
 
@@ -247,6 +255,7 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
         const seconds = typeof args.seconds === 'number' ? args.seconds : 5;
         const intervalMs = typeof args.intervalMs === 'number' ? args.intervalMs : 1000;
         const diffThreshold = typeof args.diffThreshold === 'number' ? args.diffThreshold : 0.05;
+        const useViewport = args.mode === 'viewport';
         const ssOpts: ScreenshotOptions = {};
         if (typeof args.quality === 'number') ssOpts.quality = args.quality;
         if (typeof args.maxWidth === 'number') ssOpts.maxWidth = args.maxWidth;
@@ -267,7 +276,9 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
           const elapsed = Date.now() - start;
           let result: ScreenshotResult;
           try {
-            result = captureScreenshot(canvas, ssOpts);
+            result = useViewport
+              ? await captureViewport(canvas, ssOpts)
+              : captureScreenshot(canvas, ssOpts);
           } catch {
             // canvas not available — wait and retry
             const remaining = end - Date.now();
@@ -325,6 +336,7 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
           overlayOptions,
           registeredRoots,
           typeof args.quality === 'number' ? args.quality : undefined,
+          args.mode === 'viewport' ? 'viewport' : undefined,
         );
       }
 

@@ -14,12 +14,13 @@ interface ScreenshotResult {
  */
 export async function screenshot(
   bridge: BridgeServer,
-  args: { quality?: number; maxWidth?: number; maxHeight?: number },
+  args: { quality?: number; maxWidth?: number; maxHeight?: number; mode?: string },
 ): Promise<{ type: 'image'; data: string; mimeType: string }> {
   const sendArgs: Record<string, unknown> = {};
   if (args.quality !== undefined) sendArgs.quality = args.quality;
   if (args.maxWidth !== undefined) sendArgs.maxWidth = args.maxWidth;
   if (args.maxHeight !== undefined) sendArgs.maxHeight = args.maxHeight;
+  if (args.mode !== undefined) sendArgs.mode = args.mode;
   const result = (await bridge.send('screenshot', sendArgs)) as ScreenshotResult;
 
   const parsed = parseDataUrl(result.dataUrl);
@@ -47,6 +48,7 @@ export async function watch(
     diffThreshold?: number;
     maxWidth?: number;
     maxHeight?: number;
+    mode?: string;
   },
 ): Promise<WatchFrame[]> {
   const sendArgs: Record<string, unknown> = {
@@ -56,6 +58,7 @@ export async function watch(
   if (args.diffThreshold !== undefined) sendArgs.diffThreshold = args.diffThreshold;
   if (args.maxWidth !== undefined) sendArgs.maxWidth = args.maxWidth;
   if (args.maxHeight !== undefined) sendArgs.maxHeight = args.maxHeight;
+  if (args.mode !== undefined) sendArgs.mode = args.mode;
 
   const timeoutMs = args.seconds * 1000 + 10000;
   const result = (await bridge.send('watch', sendArgs, timeoutMs)) as {
@@ -86,13 +89,20 @@ export async function watch(
  */
 export async function debug_screenshot(
   bridge: BridgeServer,
-  args: { boundingBoxes?: boolean; properties?: string[]; grid?: boolean; quality?: number },
+  args: {
+    boundingBoxes?: boolean;
+    properties?: string[];
+    grid?: boolean;
+    quality?: number;
+    mode?: string;
+  },
 ): Promise<{ type: 'image'; data: string; mimeType: string }> {
   const sendArgs: Record<string, unknown> = {};
   if (args.boundingBoxes !== undefined) sendArgs.boundingBoxes = args.boundingBoxes;
   if (args.properties !== undefined) sendArgs.properties = args.properties;
   if (args.grid !== undefined) sendArgs.grid = args.grid;
   if (args.quality !== undefined) sendArgs.quality = args.quality;
+  if (args.mode !== undefined) sendArgs.mode = args.mode;
 
   const result = (await bridge.send('debug_screenshot', sendArgs)) as ScreenshotResult;
   const parsed = parseDataUrl(result.dataUrl);
@@ -107,10 +117,16 @@ export const visualToolDefs = [
   {
     name: 'screenshot',
     description:
-      'Take a screenshot of the currently running game. Returns a WebP image (falls back to JPEG). Use maxWidth/maxHeight to downscale for smaller context usage.',
+      'Take a screenshot of the running game. By default captures only the <canvas> element. Use mode "viewport" to capture the full page including DOM overlays (HTML UI on top of the canvas). Use maxWidth/maxHeight to downscale for smaller context usage.',
     inputSchema: {
       type: 'object' as const,
       properties: {
+        mode: {
+          type: 'string',
+          enum: ['canvas', 'viewport'],
+          description:
+            'Capture mode. "canvas" (default) captures only the game canvas. "viewport" captures the full page including DOM overlays — use this when the game has HTML UI elements (scores, menus, text) rendered on top of the canvas.',
+        },
         quality: {
           type: 'number',
           description: 'Image quality from 0 to 1 (default 0.85)',
@@ -148,6 +164,12 @@ export const visualToolDefs = [
           description: 'Milliseconds between screenshots (default 1000)',
           minimum: 100,
         },
+        mode: {
+          type: 'string',
+          enum: ['canvas', 'viewport'],
+          description:
+            'Capture mode. "canvas" (default) captures only the game canvas. "viewport" captures the full page including DOM overlays.',
+        },
         diffThreshold: {
           type: 'number',
           description:
@@ -175,6 +197,12 @@ export const visualToolDefs = [
     inputSchema: {
       type: 'object' as const,
       properties: {
+        mode: {
+          type: 'string',
+          enum: ['canvas', 'viewport'],
+          description:
+            'Capture mode. "canvas" (default) captures only the game canvas. "viewport" captures the full page including DOM overlays.',
+        },
         boundingBoxes: {
           type: 'boolean',
           description: 'Draw labeled bounding boxes around scene objects (default true)',

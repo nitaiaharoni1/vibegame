@@ -16,7 +16,7 @@ export interface ActAndObserveArgs {
   eval?: string;
   inputs?: BridgeInputEventWire[];
   wait_ms?: number;
-  screenshot?: boolean | { quality?: number };
+  screenshot?: boolean | { quality?: number; mode?: 'canvas' | 'viewport' };
   inspect?: string[];
   scene_graph?: { depth?: number };
 }

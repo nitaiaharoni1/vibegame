@@ -7,7 +7,7 @@ import { inspectPath, mutatePath } from './mutator.js';
 import type { SceneNode } from './scene-inspector.js';
 import { inspectSceneGraph } from './scene-inspector.js';
 import type { ScreenshotResult } from './screenshot.js';
-import { captureScreenshot } from './screenshot.js';
+import { captureScreenshot, captureViewport } from './screenshot.js';
 
 export type { ActAndObserveArgs };
 
@@ -85,11 +85,13 @@ export async function actAndObserve(
 
   // Step 5: Capture screenshot
   if (args.screenshot) {
-    const quality =
-      typeof args.screenshot === 'object' && args.screenshot.quality !== undefined
-        ? args.screenshot.quality
-        : 0.9;
-    result.screenshot = captureScreenshot(canvas, quality);
+    const ssObj = typeof args.screenshot === 'object' ? args.screenshot : {};
+    const quality = ssObj.quality ?? 0.9;
+    if (ssObj.mode === 'viewport') {
+      result.screenshot = await captureViewport(canvas, { quality });
+    } else {
+      result.screenshot = captureScreenshot(canvas, quality);
+    }
   }
 
   // Step 6: Gather inspections
