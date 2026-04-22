@@ -17,8 +17,20 @@ import {
 
 import { BridgeServer } from './bridge-server.js';
 import { handleCliControlPost } from './cli-control-handler.js';
-import { mcpJsonResult, mcpTextResult, textBlock, textBlockJson } from './mcp-content.js';
-import { agentToolDefs, discover_controls, observe, run_policy } from './tools/agent.js';
+import {
+  mcpJsonResult,
+  mcpJsonResultCompact,
+  mcpTextResult,
+  textBlock,
+  textBlockJson,
+} from './mcp-content.js';
+import {
+  agentToolDefs,
+  discover_controls,
+  observe,
+  run_policy,
+  summarizeRunPolicy,
+} from './tools/agent.js';
 import { asset_manifest, assetToolDefs, placeholder_asset } from './tools/assets.js';
 import { act_and_observe, compoundToolDefs, watch_for } from './tools/compound.js';
 import {
@@ -66,10 +78,11 @@ const VIGAME_INSTRUCTIONS = `
 vigame MCP — AI toolkit for live Three.js / Phaser game control.
 
 RECOMMENDED WORKFLOW
-1. observe(auto_discover:true, spatial:true)  — understand entities, positions, fps
-2. screenshot()                               — understand visual layout (once)
-3. discover_controls()                        — learn what keys do (cached after first run)
-4. run_policy(...)                            — play autonomously at game speed; iterate
+1. observe(auto_discover:true, spatial:true)  — understand entities, positions, fps (recursive depth 3)
+2. observe(compute_velocity:true)             — call again to get velocity vectors
+3. screenshot()                               — understand visual layout (once)
+4. discover_controls()                        — learn what keys do (cached after first run)
+5. run_policy(...)                            — play autonomously at game speed; iterate
 
 TOOL LAYERS (use the highest layer that fits)
 • Autonomous  : run_policy, observe, discover_controls          ← prefer these
@@ -81,16 +94,21 @@ TOOL LAYERS (use the highest layer that fits)
 KEY RULES
 • observe > screenshot for state data — faster, structured, no pixel interpretation
 • run_policy > simulate_input for gameplay — runs at 60fps without round-trips
+• run_policy returns state_change_log — check it for when scores/health change
 • discover_controls once per session — results are cached
 • mutate/eval_js to reset state before a policy episode
 • get_errors after any crash or unexpected behaviour
 • project_context at session start if .vigame/ context exists
+• state_spec paths MUST start with a registered root name (e.g. "scene.score" not "score")
+• Arrow functions like (s) => ... are auto-wrapped, but direct expressions are preferred
+• If action_counts is empty, check errors[] for POLICY VALIDATION or UNKNOWN ACTION messages
+• run_policy diagnostics.unresolved_paths shows which state_spec paths failed to resolve
 
 run_policy QUICK EXAMPLE
   state_spec: ["player.position.x","player.health","score"]
   actions: {"right":["ArrowRight"],"jump":["Space"],"idle":[]}
-  policy: "(s) => s['player.health'] < 20 ? 'jump' : 'right'"
-  reward: "(s,p) => (s.score - p.score) - (p['player.health'] - s['player.health']) * 5"
+  policy: "state['player.health'] < 20 ? 'jump' : 'right'"
+  reward: "(state.score - prev.score) - (prev['player.health'] - state['player.health']) * 5"
   duration_ms: 10000
 `.trim();
 
@@ -126,8 +144,8 @@ function getWorkflowPrompt(goal?: string): string {
 Based on what you learned, define:
 - \`state_spec\`: the paths you need each frame (e.g. \`["player.position.x", "player.health", "score"]\`)
 - \`actions\`: named actions mapped to keys (e.g. \`{"move_right":["ArrowRight"],"jump":["Space"],"idle":[]}\`)
-- \`policy\`: a JS expression \`(state) => actionName\` that picks an action based on current state
-- \`reward\`: a JS expression \`(state, prev) => number\` that scores each frame
+- \`policy\`: a JS expression using \`state\` variable that returns an action name (e.g. \`"state['player.health'] < 20 ? 'jump' : 'right'"\`)
+- \`reward\`: a JS expression using \`state\` and \`prev\` variables that returns a number (e.g. \`"(state.score - prev.score) - (prev['player.health'] - state['player.health']) * 5"\`)
 
 ## Phase 3 — Run and iterate
 1. Optionally reset game state with \`mutate\` or \`eval_js\` before the episode.
@@ -434,11 +452,17 @@ export async function startServer(): Promise<void> {
         // --- Agent tools ---
         case 'run_policy': {
           const result = await run_policy(bridge, a as unknown as Parameters<typeof run_policy>[1]);
-          return mcpJsonResult(result);
+          const summary = summarizeRunPolicy(result);
+          return {
+            content: [
+              { type: 'text' as const, text: summary },
+              { type: 'text' as const, text: JSON.stringify(result, null, 2) },
+            ],
+          };
         }
         case 'observe': {
           const result = await observe(bridge, a as unknown as Parameters<typeof observe>[1]);
-          return mcpJsonResult(result);
+          return mcpJsonResultCompact(result);
         }
         case 'discover_controls': {
           const result = await discover_controls(

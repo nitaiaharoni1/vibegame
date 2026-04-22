@@ -20,6 +20,16 @@ export interface RunPolicyArgs {
   log_interval_ms?: number;
   /** Delay between frames (ms). 0 = max speed. Default: 16 */
   frame_interval_ms?: number;
+  /** 'hold' (default) keeps keys pressed until action changes. 'tap' presses and releases each frame. */
+  input_mode?: 'hold' | 'tap';
+  /** Duration of each tap in ms (only used when input_mode is 'tap'). Default: 50 */
+  tap_duration_ms?: number;
+  /** Also log whenever a state_spec value changes (default true). Captures score/health transitions the fixed-interval log misses. */
+  log_state_changes?: boolean;
+  /** Frames of unchanged state before emitting a stale warning. Default: 60 */
+  stale_warn_frames?: number;
+  /** Frames of unchanged state before aborting the episode. Default: 300 */
+  stale_abort_frames?: number;
 }
 
 export interface EpisodeLogEntry {
@@ -42,9 +52,26 @@ export interface RunPolicyResult {
   reward_curve: number[];
   /** Sampled state+action log at log_interval_ms rate */
   episode_log: EpisodeLogEntry[];
+  /** State-change-driven log entries (emitted when a state_spec value changes) */
+  state_change_log?: StateChangeEntry[];
   /** Human-readable event descriptions (e.g. "score increased at t=2000") */
   events: string[];
   errors: string[];
+  diagnostics?: {
+    unresolved_paths: string[];
+    available_roots: string[];
+    policy_return_type?: string;
+  };
+}
+
+export interface StateChangeEntry {
+  t: number;
+  frame: number;
+  path: string;
+  old_value: unknown;
+  new_value: unknown;
+  action: string;
+  reward: number;
 }
 
 /**
@@ -58,12 +85,18 @@ export interface ObserveArgs {
   auto_discover?: boolean;
   /** Compute pairwise distances between positioned entities */
   spatial?: boolean;
+  /** Max depth for auto_discover entity walk (default 3, max 5) */
+  max_depth?: number;
+  /** Compute velocity vectors for positioned entities by comparing to previous observation */
+  compute_velocity?: boolean;
 }
 
 export interface ObservedEntity {
   name: string;
   type: string;
   position?: { x: number; y: number; z?: number };
+  /** Velocity vector computed from position delta between consecutive observe() calls */
+  velocity?: { x: number; y: number; z?: number };
   /** Primitive properties only (string | number | boolean) */
   properties: Record<string, string | number | boolean>;
 }
@@ -81,6 +114,8 @@ export interface ObserveResult {
   spatial?: SpatialRelation[];
   registered_roots: string[];
   fps: number;
+  /** True when auto_discover hit the entity budget cap and stopped early */
+  budget_exceeded?: boolean;
 }
 
 /**
@@ -92,6 +127,10 @@ export interface DiscoverControlsArgs {
   rescan?: boolean;
   /** Custom keys to test beyond the default set */
   extra_keys?: string[];
+  /** How long to wait after each keypress for game to react (ms). Default: 200. Increase for physics-heavy games. */
+  probe_delay_ms?: number;
+  /** Max depth for recursive property probing. Default: 3 */
+  probe_depth?: number;
 }
 
 export interface ControlMapping {
@@ -106,4 +145,6 @@ export interface DiscoverControlsResult {
   controls: ControlMapping[];
   summary: string;
   cached: boolean;
+  /** Set when results may be unreliable (e.g. 'background_tab') */
+  warning?: string;
 }

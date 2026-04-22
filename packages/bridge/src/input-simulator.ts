@@ -1,3 +1,8 @@
+import {
+  SPECIAL_KEY_CODES as _SPECIAL_KEY_CODES,
+  SPECIAL_KEY_CODES_TO_CODE as _SPECIAL_KEY_CODES_TO_CODE,
+} from '@vigame/protocol';
+
 export interface InputEvent {
   type: 'keydown' | 'keyup' | 'keypress' | 'click' | 'mousemove' | 'mousedown' | 'mouseup';
   key?: string;
@@ -37,58 +42,10 @@ function getInputTarget(): HTMLCanvasElement | Document {
 
 /** Map `KeyboardEvent.key` values to legacy `keyCode` numbers.
  *  Phaser 3 dispatches entirely via `event.keyCode`, so this must be correct. */
-const SPECIAL_KEY_CODES: Record<string, number> = {
-  Backspace: 8,
-  Tab: 9,
-  Enter: 13,
-  Shift: 16,
-  Control: 17,
-  Alt: 18,
-  Pause: 19,
-  CapsLock: 20,
-  Escape: 27,
-  ' ': 32,
-  Space: 32,
-  PageUp: 33,
-  PageDown: 34,
-  End: 35,
-  Home: 36,
-  ArrowLeft: 37,
-  ArrowUp: 38,
-  ArrowRight: 39,
-  ArrowDown: 40,
-  Insert: 45,
-  Delete: 46,
-  F1: 112,
-  F2: 113,
-  F3: 114,
-  F4: 115,
-  F5: 116,
-  F6: 117,
-  F7: 118,
-  F8: 119,
-  F9: 120,
-  F10: 121,
-  F11: 122,
-  F12: 123,
-};
+export const SPECIAL_KEY_CODES = _SPECIAL_KEY_CODES;
 
 /** Map `KeyboardEvent.key` to `KeyboardEvent.code`. */
-const SPECIAL_KEY_CODES_TO_CODE: Record<string, string> = {
-  ' ': 'Space',
-  Space: 'Space',
-  Enter: 'Enter',
-  Backspace: 'Backspace',
-  Tab: 'Tab',
-  Shift: 'ShiftLeft',
-  Control: 'ControlLeft',
-  Alt: 'AltLeft',
-  Escape: 'Escape',
-  ArrowLeft: 'ArrowLeft',
-  ArrowUp: 'ArrowUp',
-  ArrowRight: 'ArrowRight',
-  ArrowDown: 'ArrowDown',
-};
+export const SPECIAL_KEY_CODES_TO_CODE = _SPECIAL_KEY_CODES_TO_CODE;
 
 function resolveKeyCode(key: string): number {
   if (key.length === 1) {
@@ -120,9 +77,12 @@ function dispatchKey(type: 'keydown' | 'keyup' | 'keypress', key: string): void 
     cancelable: true,
   });
   target.dispatchEvent(event);
-  // Also dispatch to document if target is the canvas, so global listeners still fire
+  // Also dispatch to document and window so global listeners (Phaser keyboard) fire
   if (target !== document) {
     document.dispatchEvent(event);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(event);
   }
 }
 

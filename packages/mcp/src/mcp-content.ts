@@ -30,3 +30,10 @@ export function mcpTextResult(text: string): {
 } {
   return { content: [textBlock(text)] };
 }
+
+/** Compact JSON (no indentation) for large structured results like observe. */
+export function mcpJsonResultCompact(value: unknown): {
+  content: Array<{ type: 'text'; text: string }>;
+} {
+  return { content: [textBlock(JSON.stringify(value))] };
+}

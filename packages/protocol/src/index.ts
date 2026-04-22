@@ -14,6 +14,8 @@ export {
   type ParsedDataUrl,
   parseDataUrl,
 } from './data-url.js';
+export { VigameError, VigameErrorCode } from './errors.js';
+export { SPECIAL_KEY_CODES, SPECIAL_KEY_CODES_TO_CODE } from './keys.js';
 export { omitUndefined } from './object.js';
 export type {
   ControlMapping,
@@ -26,6 +28,7 @@ export type {
   RunPolicyArgs,
   RunPolicyResult,
   SpatialRelation,
+  StateChangeEntry,
 } from './policy.js';
 export {
   controlPortFromBridgePort,

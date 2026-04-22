@@ -127,6 +127,10 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
       currentFps = Math.round((frameCount * 1000) / elapsed);
       frameCount = 0;
       lastFpsTime = now;
+      // Expose to observer.ts via well-known global
+      if (typeof window !== 'undefined') {
+        (window as unknown as Record<string, unknown>).__VIGAME_FPS__ = currentFps;
+      }
     }
     requestAnimationFrame(countFrame);
   }
@@ -148,8 +152,32 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
       log('Auto-registered __THREE_SCENE__ as "scene"');
     }
     if (autoRegisterPhaser && win.__PHASER_GAME__ !== undefined) {
-      registeredRoots.set('game', win.__PHASER_GAME__);
+      const phaserGame = win.__PHASER_GAME__ as Record<string, unknown>;
+      registeredRoots.set('game', phaserGame);
       log('Auto-registered __PHASER_GAME__ as "game"');
+
+      // Also register active Phaser scene(s) so paths like "scene.playerScore" work
+      try {
+        const scenePlugin = phaserGame.scene as Record<string, unknown> | undefined;
+        const scenes = scenePlugin?.scenes as unknown[] | undefined;
+        if (Array.isArray(scenes)) {
+          for (const s of scenes) {
+            if (typeof s !== 'object' || s === null) continue;
+            const sceneObj = s as Record<string, unknown>;
+            const sysObj = sceneObj.sys as Record<string, unknown> | undefined;
+            const settings = sysObj?.settings as Record<string, unknown> | undefined;
+            const active = settings?.active;
+            const key = settings?.key;
+            if (active === true && typeof key === 'string') {
+              registeredRoots.set('scene', s);
+              log(`Auto-registered Phaser scene "${key}" as "scene"`);
+              break; // register first active scene
+            }
+          }
+        }
+      } catch {
+        // Phaser scene discovery failed — not fatal
+      }
     }
   }
 
@@ -209,22 +237,56 @@ export function injectBridge(options: BridgeOptions = {}): Bridge {
         if (code === '') throw new Error('Missing required arg: code');
         tryAutoRegister();
         try {
-          // Inject registered roots as named variables (same as watchFor)
+          // Inject registered roots via a single parameter + var destructuring.
+          // Using `var` (not const/let) so user code can re-declare root names
+          // with const/let without "Identifier already declared" errors.
           const rootNames = [...registeredRoots.keys()];
-          const rootValues = rootNames.map((n) => registeredRoots.get(n));
-          // Try expression mode first (auto-return), fall back to statement mode
-          let fn: (...fnArgs: unknown[]) => unknown;
+          const rootObj: Record<string, unknown> = {};
+          for (const n of rootNames) rootObj[n] = registeredRoots.get(n);
+          const preamble =
+            rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
+
+          // Try expression mode first (auto-return), then statement with auto-return
+          // on last expression, then plain statement mode
+          let fn: (roots: Record<string, unknown>) => unknown;
           try {
             // eslint-disable-next-line no-new-func
-            fn = new Function(...rootNames, `return (${code})`) as typeof fn;
+            fn = new Function('__roots__', `${preamble}return (${code})`) as typeof fn;
           } catch {
-            // eslint-disable-next-line no-new-func
-            fn = new Function(...rootNames, code) as typeof fn;
+            // Statement mode: auto-return the last expression
+            // Split on the last semicolon/newline to find trailing expression
+            const trimmed = code.trimEnd().replace(/;$/, '');
+            const lastNewline = Math.max(trimmed.lastIndexOf('\n'), trimmed.lastIndexOf(';'));
+            if (lastNewline > 0) {
+              const prefix = trimmed.slice(0, lastNewline + 1);
+              const lastExpr = trimmed.slice(lastNewline + 1).trim();
+              if (lastExpr !== '') {
+                try {
+                  // eslint-disable-next-line no-new-func
+                  fn = new Function(
+                    '__roots__',
+                    `${preamble}${prefix}\nreturn (${lastExpr})`,
+                  ) as typeof fn;
+                } catch {
+                  // eslint-disable-next-line no-new-func
+                  fn = new Function('__roots__', `${preamble}${code}`) as typeof fn;
+                }
+              } else {
+                // eslint-disable-next-line no-new-func
+                fn = new Function('__roots__', `${preamble}${code}`) as typeof fn;
+              }
+            } else {
+              // eslint-disable-next-line no-new-func
+              fn = new Function('__roots__', `${preamble}${code}`) as typeof fn;
+            }
           }
-          const result: unknown = fn(...rootValues);
+          const result: unknown = fn(rootObj);
           return { result };
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          let message = err instanceof Error ? err.message : String(err);
+          if (message.includes('has already been declared')) {
+            message += ` (vigame injects registered roots as local variables: ${[...registeredRoots.keys()].join(', ')})`;
+          }
           return { error: message };
         }
       }

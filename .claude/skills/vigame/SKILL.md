@@ -33,8 +33,8 @@ Tests arrows, WASD, Space, Enter, mouse — returns what each input does to game
 ### Phase 3 — Play autonomously
 ```
 run_policy({
-  policy: "(state) => { /* return action name each frame */ }",
-  reward: "(state, prev) => { /* return number */ }",
+  policy: "state['player.health'] < 20 ? 'jump' : 'right'",
+  reward: "(state.score - prev.score) * 10",
   state_spec: ["player.x", "player.health", "score"],
   actions: {
     "right": ["ArrowRight"],
@@ -73,6 +73,8 @@ Read episode_log + reward_curve. Refine the policy or reward function. Re-run. E
 - **state_spec paths are flat** — `"game.player.health"` becomes key `"game.player.health"` in the state dict
 - **done_condition stops early** — use it to end the episode on death, win, or error conditions
 - **reward_curve tells the story** — increasing = learning, flat = stuck, dropping = dying
+- **diagnostics.unresolved_paths** — check this in run_policy results to see which state_spec paths failed to resolve on the first frame
+- **Policy format** — write direct expressions using `state` (e.g. `state['player.health'] < 20 ? 'jump' : 'right'`), not arrow functions
 
 ## Quick-start (if goal is provided above)
 

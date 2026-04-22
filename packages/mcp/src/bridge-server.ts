@@ -1,4 +1,9 @@
-import { type BridgeCommandName, DEFAULT_BRIDGE_PORT } from '@vigame/protocol';
+import {
+  type BridgeCommandName,
+  DEFAULT_BRIDGE_PORT,
+  VigameError,
+  VigameErrorCode,
+} from '@vigame/protocol';
 import { WebSocket, WebSocketServer } from 'ws';
 
 interface PendingRequest {
@@ -55,6 +60,14 @@ export class BridgeServer {
   private proxyRetryTimer: ReturnType<typeof setTimeout> | null = null;
   /** When false, upstream close must not schedule reconnect (see close()). */
   private allowProxyReconnect = true;
+
+  // ── Rate limiting ──────────────────────────────────────────────────────
+  private pendingCount = 0;
+  private static readonly MAX_PENDING = 10;
+
+  // ── Proxy reconnect backoff ───────────────────────────────────────────
+  private proxyReconnectAttempts = 0;
+  private static readonly MAX_PROXY_RECONNECT = 20;
 
   // ── Shared ───────────────────────────────────────────────────────────────
   private pending = new Map<string, PendingRequest>();
@@ -180,6 +193,7 @@ export class BridgeServer {
       }
       ws.send(JSON.stringify({ type: 'mcp-proxy' }));
       this.upstreamWs = ws;
+      this.proxyReconnectAttempts = 0;
       process.stderr.write(
         `[vigame-mcp] Port ${this.proxyPort} in use — operating as proxy through the primary vigame-mcp instance.\n`,
       );
@@ -205,7 +219,12 @@ export class BridgeServer {
         this.upstreamWs = null;
         for (const [, req] of this.proxyPending) {
           clearTimeout(req.timeout);
-          req.reject(new Error('Proxy connection to primary vigame-mcp lost.'));
+          req.reject(
+            new VigameError(
+              VigameErrorCode.PROXY_UPSTREAM_LOST,
+              'Proxy connection to primary vigame-mcp lost.',
+            ),
+          );
         }
         this.proxyPending.clear();
         this.scheduleProxyReconnect();
@@ -262,12 +281,20 @@ export class BridgeServer {
     if (!this.allowProxyReconnect || !this.proxyMode) return;
     if (this.upstreamWs !== null) return;
     if (this.proxyRetryTimer !== null) return;
+    if (this.proxyReconnectAttempts >= BridgeServer.MAX_PROXY_RECONNECT) {
+      console.error(
+        `[vigame-mcp] Gave up reconnecting after ${BridgeServer.MAX_PROXY_RECONNECT} attempts`,
+      );
+      return;
+    }
+    const delay = Math.min(2000 * 2 ** this.proxyReconnectAttempts, 30000);
+    this.proxyReconnectAttempts++;
     this.proxyRetryTimer = setTimeout(() => {
       this.proxyRetryTimer = null;
       if (!this.allowProxyReconnect || !this.proxyMode || this.upstreamWs !== null) return;
       process.stderr.write('[vigame-mcp] Upstream lost — attempting to bind port as primary...\n');
       this.attemptBecomePrimary();
-    }, 2000);
+    }, delay);
   }
 
   // ── Primary: relay proxy-client commands to browser ───────────────────────
@@ -360,33 +387,81 @@ export class BridgeServer {
   ): Promise<unknown> {
     await this.ready;
 
+    if (this.pendingCount >= BridgeServer.MAX_PENDING) {
+      throw new VigameError(
+        VigameErrorCode.NO_BROWSER,
+        `Too many pending commands (${BridgeServer.MAX_PENDING}). Wait for current commands to complete.`,
+      );
+    }
+    this.pendingCount++;
+
     if (this.proxyMode) {
       if (!this.upstreamWs || this.upstreamWs.readyState !== WebSocket.OPEN) {
-        throw new Error('No game connected. Make sure the bridge runtime is running in your game.');
+        this.pendingCount--;
+        throw new VigameError(
+          VigameErrorCode.PROXY_UPSTREAM_LOST,
+          'Proxy connection to primary vigame-mcp lost.',
+        );
       }
       const id = String(++this.proxyMessageId);
       const upstream = this.upstreamWs;
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
           this.proxyPending.delete(id);
-          reject(new Error(`Command "${command}" timed out after ${timeoutMs}ms`));
+          this.pendingCount--;
+          reject(
+            new VigameError(
+              VigameErrorCode.COMMAND_TIMEOUT,
+              `Command "${command}" timed out after ${timeoutMs}ms. Game tab may be in background or unresponsive.`,
+            ),
+          );
         }, timeoutMs);
-        this.proxyPending.set(id, { resolve, reject, timeout });
+        this.proxyPending.set(id, {
+          resolve: (v) => {
+            this.pendingCount--;
+            resolve(v);
+          },
+          reject: (e) => {
+            this.pendingCount--;
+            reject(e);
+          },
+          timeout,
+        });
         upstream.send(JSON.stringify({ id, command, args }));
       });
     }
 
     if (!this.browserClient || this.browserClient.readyState !== WebSocket.OPEN) {
-      throw new Error('No game connected. Make sure the bridge runtime is running in your game.');
+      this.pendingCount--;
+      throw new VigameError(
+        VigameErrorCode.NO_BROWSER,
+        'No browser tab connected to vigame bridge. Ensure injectBridge() is running in the game.',
+      );
     }
     const browser = this.browserClient;
     const id = String(++this.messageId);
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`Command "${command}" timed out after ${timeoutMs}ms`));
+        this.pendingCount--;
+        reject(
+          new VigameError(
+            VigameErrorCode.COMMAND_TIMEOUT,
+            `Command "${command}" timed out after ${timeoutMs}ms. Game tab may be in background or unresponsive.`,
+          ),
+        );
       }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timeout });
+      this.pending.set(id, {
+        resolve: (v) => {
+          this.pendingCount--;
+          resolve(v);
+        },
+        reject: (e) => {
+          this.pendingCount--;
+          reject(e);
+        },
+        timeout,
+      });
       browser.send(JSON.stringify({ id, command, args }));
     });
   }

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "vigame": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["/Users/nitai/REPOS/game-vibegame/packages/mcp/dist/bin.js"]
+    }
+  }
+}

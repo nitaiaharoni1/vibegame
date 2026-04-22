@@ -499,3 +499,56 @@ describe('recordState with diffThreshold', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('eval var preamble (root name collision prevention)', () => {
+  function evalWithRoots(
+    code: string,
+    roots: Map<string, unknown>,
+  ): { result?: unknown; error?: string } {
+    const rootNames = [...roots.keys()];
+    const rootObj: Record<string, unknown> = {};
+    for (const n of rootNames) rootObj[n] = roots.get(n);
+    const preamble =
+      rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function('__roots__', `${preamble}return (${code})`);
+      return { result: fn(rootObj) };
+    } catch (err) {
+      return { error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  it('should access registered roots as local variables', () => {
+    const roots = new Map<string, unknown>();
+    roots.set('scene', { ball: { x: 42 } });
+    const { result } = evalWithRoots('scene.ball.x', roots);
+    expect(result).toBe(42);
+  });
+
+  it('should allow const redeclaration of root names without error', () => {
+    const roots = new Map<string, unknown>();
+    roots.set('scene', { ball: { x: 42 } });
+    // This would throw "Identifier 'scene' has already been declared" with old approach
+    const { result, error } = evalWithRoots(
+      '(function() { const scene = "shadowed"; return scene; })()',
+      roots,
+    );
+    expect(error).toBeUndefined();
+    expect(result).toBe('shadowed');
+  });
+
+  it('should work with no roots registered', () => {
+    const roots = new Map<string, unknown>();
+    const { result } = evalWithRoots('1 + 2', roots);
+    expect(result).toBe(3);
+  });
+
+  it('should allow root access alongside shadowed variables', () => {
+    const roots = new Map<string, unknown>();
+    roots.set('game', { score: 10 });
+    roots.set('scene', { x: 5 });
+    const { result } = evalWithRoots('game.score + scene.x', roots);
+    expect(result).toBe(15);
+  });
+});

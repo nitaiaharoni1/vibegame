@@ -12,10 +12,13 @@ export async function watchFor(
 ): Promise<WatchForResult> {
   const rootEntries = Array.from(registeredRoots.entries());
   const rootNames = rootEntries.map(([k]) => k);
-  const rootValues = rootEntries.map(([, v]) => v);
+  const rootObj: Record<string, unknown> = {};
+  for (const [k, v] of rootEntries) rootObj[k] = v;
+  const preamble =
+    rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
 
   // eslint-disable-next-line no-new-func
-  const condFn = new Function(...rootNames, `return (${args.condition})`);
+  const condFn = new Function('__roots__', `${preamble}return (${args.condition})`);
 
   const start = Date.now();
   let triggered = false;
@@ -27,7 +30,7 @@ export async function watchFor(
 
     let condResult = false;
     try {
-      condResult = Boolean(condFn(...rootValues));
+      condResult = Boolean(condFn(rootObj));
     } catch {
       // treat condition errors as false
     }

@@ -29,7 +29,7 @@ describe('BridgeServer', () => {
 
   it('rejects with a clear error when no game is connected', async () => {
     bridge = new BridgeServer(17770);
-    await expect(bridge.send('screenshot', {})).rejects.toThrow('No game connected');
+    await expect(bridge.send('screenshot', {})).rejects.toThrow('No browser tab connected');
   });
 
   it('isConnected() returns false before any client connects', () => {

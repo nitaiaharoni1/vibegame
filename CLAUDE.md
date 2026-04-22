@@ -107,6 +107,21 @@ Start the server: `vigame start` (or `pnpm start` in the package)
 ### Performance tools
 - `perf_snapshot` — get FPS, memory, draw call stats
 
+### run_policy tips
+
+**Policy format**: Write policies as direct expressions using `state` (the parameter name):
+```
+state['player.health'] < 20 ? 'jump' : 'right'
+```
+
+Arrow functions like `(s) => s.x > 5 ? 'right' : 'left'` are auto-wrapped, but direct expressions are preferred.
+
+**Common mistakes**:
+- Empty `action_counts`? Check `errors[]` for `POLICY VALIDATION` or `UNKNOWN ACTION` messages
+- `reward_curve` all nulls? Ensure reward expression uses `state` and `prev` (not `s` and `p`)
+- State frozen? Game may be paused/ended — use `eval_js` to restart before running policy
+- `diagnostics.unresolved_paths` shows which state_spec paths failed to resolve on the first frame
+
 ## @vigame/cli
 
 Start the MCP server:

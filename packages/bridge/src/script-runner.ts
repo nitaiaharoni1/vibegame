@@ -65,16 +65,19 @@ export async function runScript(
         case 'wait_for': {
           const rootEntries = Array.from(registeredRoots.entries());
           const rootNames = rootEntries.map(([k]) => k);
-          const rootValues = rootEntries.map(([, v]) => v);
+          const rootObj: Record<string, unknown> = {};
+          for (const [k, v] of rootEntries) rootObj[k] = v;
+          const pre =
+            rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
           // eslint-disable-next-line no-new-func
-          const condFn = new Function(...rootNames, `return (${step.condition})`);
+          const condFn = new Function('__roots__', `${pre}return (${step.condition})`);
 
           const waitStart = Date.now();
           let triggered = false;
           while (Date.now() - waitStart < step.timeout_ms) {
             await new Promise<void>((r) => setTimeout(r, 16));
             try {
-              if (condFn(...rootValues)) {
+              if (condFn(rootObj)) {
                 triggered = true;
                 break;
               }
@@ -116,12 +119,15 @@ export async function runScript(
         case 'assert': {
           const rootEntries = Array.from(registeredRoots.entries());
           const rootNames = rootEntries.map(([k]) => k);
-          const rootValues = rootEntries.map(([, v]) => v);
+          const rootObj: Record<string, unknown> = {};
+          for (const [k, v] of rootEntries) rootObj[k] = v;
+          const pre =
+            rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
 
           try {
             // eslint-disable-next-line no-new-func
-            const assertFn = new Function(...rootNames, `return (${step.condition})`);
-            const actual: unknown = assertFn(...rootValues);
+            const assertFn = new Function('__roots__', `${pre}return (${step.condition})`);
+            const actual: unknown = assertFn(rootObj);
             const passed = Boolean(actual);
             assertions.push({
               step_index: i,
@@ -151,17 +157,20 @@ export async function runScript(
         case 'eval': {
           const rootEntries = Array.from(registeredRoots.entries());
           const rootNames = rootEntries.map(([k]) => k);
-          const rootValues = rootEntries.map(([, v]) => v);
+          const rootObj: Record<string, unknown> = {};
+          for (const [k, v] of rootEntries) rootObj[k] = v;
+          const pre =
+            rootNames.length > 0 ? `var {${rootNames.join(',')}} = __roots__;\n` : '';
           try {
-            let fn: (...fnArgs: unknown[]) => unknown;
+            let fn: (roots: Record<string, unknown>) => unknown;
             try {
               // eslint-disable-next-line no-new-func
-              fn = new Function(...rootNames, `return (${step.code})`) as typeof fn;
+              fn = new Function('__roots__', `${pre}return (${step.code})`) as typeof fn;
             } catch {
               // eslint-disable-next-line no-new-func
-              fn = new Function(...rootNames, step.code) as typeof fn;
+              fn = new Function('__roots__', `${pre}${step.code}`) as typeof fn;
             }
-            fn(...rootValues);
+            fn(rootObj);
           } catch {
             // eval errors are non-fatal in scripts
           }
